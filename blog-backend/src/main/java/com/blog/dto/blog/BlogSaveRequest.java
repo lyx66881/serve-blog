@@ -12,6 +12,8 @@ import jakarta.validation.constraints.Size;
  * content 为 TipTap / ProseMirror JSON 对象（原样存储，服务端不修改结构）。
  * status 仅在创建时生效：draft（默认）/ published；编辑时通过
  * POST /{id}/publish 与 POST /{id}/unpublish 接口变更状态。
+ * isPublic 默认 false（不公开）；公开的文章才参与最新 / 热门等公开列表排名，
+ * 编辑时也可修改该字段。
  */
 public record BlogSaveRequest(
         @Size(max = 200, message = "标题最长 200 字符")
@@ -30,6 +32,8 @@ public record BlogSaveRequest(
         Long categoryId,
 
         List<String> tags,
+
+        Boolean isPublic,
 
         String status
 ) {

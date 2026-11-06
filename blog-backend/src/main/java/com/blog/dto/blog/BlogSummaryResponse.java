@@ -18,6 +18,7 @@ public record BlogSummaryResponse(
         String categoryName,
         List<TagResponse> tags,
         String status,
+        Boolean isPublic,
         Long viewCount,
         LocalDateTime publishedAt,
         LocalDateTime createdAt,

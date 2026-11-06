@@ -34,6 +34,9 @@ public class Blog {
 
     private String status;
 
+    /** 是否公开 0否 1是；公开才参与公开列表排名 */
+    private Integer isPublic;
+
     private String content;
 
     private String contentHtml;
@@ -69,6 +72,8 @@ public class Blog {
     public void setCategoryId(Long categoryId) { this.categoryId = categoryId; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public Integer getIsPublic() { return isPublic; }
+    public void setIsPublic(Integer isPublic) { this.isPublic = isPublic; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
     public String getContentHtml() { return contentHtml; }

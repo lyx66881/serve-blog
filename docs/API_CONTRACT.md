@@ -221,6 +221,8 @@ Authorization: Bearer <accessToken>
 
 公开接口（列表/详情）只暴露 `published`；非作者访问草稿/下架博客返回 `40402`（不泄露存在性）。
 
+**公开性（`isPublic`）**：博客另有 `isPublic` 布尔字段（默认 `false`）。仅 `published` **且** `isPublic=true` 的博客参与公开列表（最新 / 热门 / 搜索 / 筛选）排名；`isPublic=false` 的已发布博客不出现在任何公开列表中，详情仅作者可见（他人访问 `40402`）。作者本人不受限制。创建/编辑时可设置。
+
 ### 4.2 公开博客列表 `GET /api/v1/blogs`（公开）
 
 | 参数 | 类型 | 必填 | 说明 |
@@ -244,6 +246,7 @@ Authorization: Bearer <accessToken>
   "categoryId": 1, "categoryName": "前端开发",
   "tags": [ { "id": 1, "name": "Java" } ],
   "status": "published",
+  "isPublic": true,
   "viewCount": 3,
   "publishedAt": "2026-11-06T14:53:19",
   "createdAt": "...", "updatedAt": "..."
@@ -264,6 +267,7 @@ Authorization: Bearer <accessToken>
   "id": 1, "author": { "...": "..." }, "title": "...", "summary": "...",
   "coverImage": "...", "categoryId": 1, "categoryName": "前端开发",
   "tags": [...], "status": "published",
+  "isPublic": true,
   "content": { "type": "doc", "content": [ ... ] },
   "contentHtml": null,
   "contentVersion": "1",
@@ -292,6 +296,7 @@ Authorization: Bearer <accessToken>
 | coverImage | string | 否 | 封面 URL（上传接口获得） |
 | categoryId | long | 否 | 必须是已存在分类 |
 | tags | string[] | 否 | 标签名数组，自动创建；≤10 个，每个 ≤30 字符 |
+| isPublic | boolean | 否 | 是否公开，默认 `false`；公开才参与公开列表排名 |
 | status | string | 否 | `draft`（默认）/ `published` |
 
 响应 `data`：完整 `BlogResponse`。
@@ -300,6 +305,7 @@ Authorization: Bearer <accessToken>
 
 请求体同创建，**所有字段可选**，仅非空字段生效；`content` 变更时自动重新提取摘要。
 状态变更不通过本接口（用 4.8 / 4.9）。`tags` 传 `[]` 清空，不传保持不变。
+`isPublic` 传 `true`/`false` 可随时切换公开性；不传保持不变。
 
 错误：`40300` 非作者、`40402` 博客不存在、`40403` 分类不存在。
 

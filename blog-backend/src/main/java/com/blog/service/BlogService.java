@@ -87,6 +87,7 @@ public class BlogService {
         if (Blog.STATUS_PUBLISHED.equals(status)) {
             blog.setPublishedAt(LocalDateTime.now());
         }
+        blog.setIsPublic(Boolean.TRUE.equals(req.isPublic()) ? 1 : 0);
         blogMapper.insert(blog);
         saveBlogTags(blog.getId(), req.tags());
 
@@ -115,6 +116,9 @@ public class BlogService {
         }
         if (req.categoryId() != null) {
             blog.setCategoryId(requireValidCategoryId(req.categoryId()));
+        }
+        if (req.isPublic() != null) {
+            blog.setIsPublic(Boolean.TRUE.equals(req.isPublic()) ? 1 : 0);
         }
         blogMapper.updateById(blog);
         if (req.tags() != null) {
@@ -167,6 +171,9 @@ public class BlogService {
         if (!Blog.STATUS_PUBLISHED.equals(blog.getStatus()) && !isAuthor) {
             throw new BizException(ErrorCode.BLOG_NOT_FOUND);
         }
+        if (!isAuthor && !isPublicBlog(blog)) {
+            throw new BizException(ErrorCode.BLOG_NOT_FOUND);
+        }
         if (Blog.STATUS_PUBLISHED.equals(blog.getStatus())) {
             blogMapper.update(null, new LambdaUpdateWrapper<Blog>()
                     .eq(Blog::getId, blogId)
@@ -177,13 +184,14 @@ public class BlogService {
     }
 
     /**
-     * 公开博客列表（仅已发布）。
+     * 公开博客列表（仅已发布且公开；最新 / 热门 / 筛选均只展示公开文章）。
      */
     public PageResult<BlogSummaryResponse> listPublic(Long page, Long pageSize, String keyword,
                                                       Long categoryId, Long tagId, Long authorId, String sort) {
         long[] paging = clampPaging(page, pageSize);
         LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>()
                 .eq(Blog::getStatus, Blog.STATUS_PUBLISHED)
+                .eq(Blog::getIsPublic, 1)
                 .select(Blog.class, f -> !LIST_EXCLUDED_COLUMNS.contains(f.getColumn()));
 
         if (keyword != null && !keyword.isBlank()) {
@@ -323,6 +331,10 @@ public class BlogService {
                 || Blog.STATUS_OFFLINE.equals(status);
     }
 
+    private boolean isPublicBlog(Blog blog) {
+        return blog.getIsPublic() != null && blog.getIsPublic() == 1;
+    }
+
     // ==================== 响应组装 ====================
 
     private BlogSummaryResponse toSummaryResponse(Blog blog, List<Blog> context) {
@@ -340,6 +352,7 @@ public class BlogService {
                 categoryNames.get(blog.getCategoryId()),
                 tags.getOrDefault(blog.getId(), List.of()),
                 blog.getStatus(),
+                isPublicBlog(blog),
                 blog.getViewCount(),
                 blog.getPublishedAt(),
                 blog.getCreatedAt(),
@@ -360,6 +373,7 @@ public class BlogService {
                 categoryNames.get(blog.getCategoryId()),
                 tags,
                 blog.getStatus(),
+                isPublicBlog(blog),
                 blog.getContent(),
                 blog.getContentHtml(),
                 blog.getContentVersion(),

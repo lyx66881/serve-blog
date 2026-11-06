@@ -21,6 +21,7 @@ public record BlogResponse(
         String categoryName,
         List<TagResponse> tags,
         String status,
+        Boolean isPublic,
         @JsonRawValue String content,
         String contentHtml,
         String contentVersion,
