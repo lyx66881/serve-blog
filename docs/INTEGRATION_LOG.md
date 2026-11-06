@@ -50,5 +50,14 @@
 | 日期 | Issue | 问题 | 处理 | commit |
 |------|-------|------|------|--------|
 
-ALL_INTEGRATION_DONE 2026-11-06
+## 后端抽查记录（后端窗口，2026-11-06）
+
+收到 `ALL_INTEGRATION_DONE` 信号，完成独立抽查验证，结论：**联调真实有效，后端确认收工**。
+
+- 数据库痕迹核对：新用户 `itliaohe06`（联调探针）真实注册；联调博客覆盖改名、下架（offline）、标签筛选（published）、草稿（draft）场景；新增 2 个分类；`uploaded_files` 表为空系前端测试后调用 DELETE 物理删除所致，磁盘残留 1 个测试文件（无害，后端清理）。
+- 外网验证：`GET /api/v1/categories` HTTP 200；静态图片 `GET /uploads/avatar/**` HTTP 200（image/png）。
+- 契约一致性：上传目录命名（avatar/article/cover）、响应包裹结构、错误码、分页参数与 `API_CONTRACT.md` 一致，无契约漂移。
+- 后端侧待办（不影响联调结论）：清理磁盘残留测试文件、清理部署测试账号 `deploytest` 的联调数据。
+
+ALL_INTEGRATION_DONE 2026-11-06（后端窗口已核验）
 
