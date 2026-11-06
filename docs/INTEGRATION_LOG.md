@@ -14,29 +14,41 @@
 
 | # | 模块 | 接口 | 状态 | Issue |
 |---|------|------|------|-------|
-| 1 | 认证 | POST /api/v1/auth/register | ⬜ 未联调 | - |
-| 2 | 认证 | POST /api/v1/auth/login | ⬜ 未联调 | - |
-| 3 | 认证 | POST /api/v1/auth/logout | ⬜ 未联调 | - |
-| 4 | 用户 | GET /api/v1/users/me | ⬜ 未联调 | - |
-| 5 | 用户 | PUT /api/v1/users/me | ⬜ 未联调 | - |
-| 6 | 用户 | POST /api/v1/users/me/avatar | ⬜ 未联调 | - |
-| 7 | 用户 | GET /api/v1/users/{id} | ⬜ 未联调 | - |
-| 8 | 用户 | GET /api/v1/users/{id}/blogs | ⬜ 未联调 | - |
-| 9 | 博客 | GET /api/v1/blogs（公开列表/搜索/筛选） | ⬜ 未联调 | - |
-| 10 | 博客 | GET /api/v1/blogs/my | ⬜ 未联调 | - |
-| 11 | 博客 | GET /api/v1/blogs/{id} | ⬜ 未联调 | - |
-| 12 | 博客 | POST /api/v1/blogs | ⬜ 未联调 | - |
-| 13 | 博客 | PUT /api/v1/blogs/{id} | ⬜ 未联调 | - |
-| 14 | 博客 | DELETE /api/v1/blogs/{id} | ⬜ 未联调 | - |
-| 15 | 博客 | POST /api/v1/blogs/{id}/publish | ⬜ 未联调 | - |
-| 16 | 博客 | POST /api/v1/blogs/{id}/unpublish | ⬜ 未联调 | - |
-| 17 | 上传 | POST /api/v1/upload/image | ⬜ 未联调 | - |
-| 18 | 上传 | DELETE /api/v1/upload/{id} | ⬜ 未联调 | - |
-| 19 | 分类标签 | GET /api/v1/tags | ⬜ 未联调 | - |
-| 20 | 分类标签 | GET /api/v1/categories | ⬜ 未联调 | - |
-| 21 | 分类标签 | POST /api/v1/categories | ⬜ 未联调 | - |
+| 1 | 认证 | POST /api/v1/auth/register | ✅ 通过 | - |
+| 2 | 认证 | POST /api/v1/auth/login | ✅ 通过 | - |
+| 3 | 认证 | POST /api/v1/auth/logout | ✅ 通过 | - |
+| 4 | 用户 | GET /api/v1/users/me | ✅ 通过 | - |
+| 5 | 用户 | PUT /api/v1/users/me | ✅ 通过 | - |
+| 6 | 用户 | POST /api/v1/users/me/avatar | ✅ 通过 | - |
+| 7 | 用户 | GET /api/v1/users/{id} | ✅ 通过 | - |
+| 8 | 用户 | GET /api/v1/users/{id}/blogs | ✅ 通过 | - |
+| 9 | 博客 | GET /api/v1/blogs（公开列表/搜索/筛选） | ✅ 通过 | - |
+| 10 | 博客 | GET /api/v1/blogs/my | ✅ 通过 | - |
+| 11 | 博客 | GET /api/v1/blogs/{id} | ✅ 通过 | - |
+| 12 | 博客 | POST /api/v1/blogs | ✅ 通过 | - |
+| 13 | 博客 | PUT /api/v1/blogs/{id} | ✅ 通过 | - |
+| 14 | 博客 | DELETE /api/v1/blogs/{id} | ✅ 通过 | - |
+| 15 | 博客 | POST /api/v1/blogs/{id}/publish | ✅ 通过 | - |
+| 16 | 博客 | POST /api/v1/blogs/{id}/unpublish | ✅ 通过 | - |
+| 17 | 上传 | POST /api/v1/upload/image | ✅ 通过 | - |
+| 18 | 上传 | DELETE /api/v1/upload/{id} | ✅ 通过 | - |
+| 19 | 分类标签 | GET /api/v1/tags | ✅ 通过 | - |
+| 20 | 分类标签 | GET /api/v1/categories | ✅ 通过 | - |
+| 21 | 分类标签 | POST /api/v1/categories | ✅ 通过 | - |
+
+## 联调验证说明（前端窗口，2026-11-06）
+
+- 认证模块：注册即返回 accessToken（含 tokenType/expiresIn/user）；login 支持 username 字段传邮箱；logout 后旧 token 访问 users/me 返回 HTTP 401，前端已做登录态清除跳转。
+- 用户模块：PUT /users/me 仅非空字段生效（bio/昵称验证）；POST /users/me/avatar 一步完成「上传 + 更新头像」并返回更新后的 user；GET /users/{id} 返回 blogCount 且不含 email，符合契约。
+- 博客模块：content 为 TipTap JSON 对象直接传输（未 stringify）；创建 draft → publish → unpublish → delete 全链路验证；PUT 仅非空字段生效、tags 传数组自动创建；GET /blogs 验证 keyword/categoryId/tagId/sort=hot 筛选与 page/pageSize 分页（page 从 1 开始）。
+- 上传模块：multipart 字段名 file，jpeg/png 验证通过，返回相对路径 /uploads/article/**，已验证可经后端 origin 直接访问；DELETE 首次成功、重复删除返回 40404。
+- 分类标签：GET tags / GET categories 公开可访问；POST categories 创建「联调临时分类」成功，重复名校验符合契约。
+- 浏览器端到端：首页列表/精选/分类、登录、详情页、TipTap 编辑器保存草稿（id=4）、草稿箱管理、用户主页 blogCount 均基于真实后端数据验证通过。
 
 ## 修复记录
 
 | 日期 | Issue | 问题 | 处理 | commit |
 |------|-------|------|------|--------|
+
+ALL_INTEGRATION_DONE 2026-11-06
+
