@@ -16,6 +16,7 @@ import com.blog.dto.user.UpdateProfileRequest;
 import com.blog.dto.user.UserProfileResponse;
 import com.blog.dto.user.UserResponse;
 import com.blog.entity.Blog;
+import com.blog.entity.EmailVerifyCode;
 import com.blog.entity.User;
 import com.blog.mapper.BlogMapper;
 import com.blog.mapper.UserMapper;
@@ -31,13 +32,15 @@ public class UserService {
     private final BlogMapper blogMapper;
     private final FileStorageService fileStorageService;
     private final PasswordEncoder passwordEncoder;
+    private final AuthService authService;
 
     public UserService(UserMapper userMapper, BlogMapper blogMapper, FileStorageService fileStorageService,
-                       PasswordEncoder passwordEncoder) {
+                       PasswordEncoder passwordEncoder, AuthService authService) {
         this.userMapper = userMapper;
         this.blogMapper = blogMapper;
         this.fileStorageService = fileStorageService;
         this.passwordEncoder = passwordEncoder;
+        this.authService = authService;
     }
 
     public UserResponse getCurrentUser() {
@@ -82,14 +85,18 @@ public class UserService {
     }
 
     /**
-     * 修改密码：校验原密码后更新为新密码。
+     * 修改密码：校验原密码 + 绑定邮箱验证码（scene=change）后更新为新密码。
      */
     @Transactional
     public void changePassword(ChangePasswordRequest req) {
         User user = requireUser(SecurityUtils.currentUserId());
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new BizException(ErrorCode.EMAIL_NOT_BOUND);
+        }
         if (!passwordEncoder.matches(req.oldPassword(), user.getPassword())) {
             throw new BizException(ErrorCode.INVALID_OLD_PASSWORD);
         }
+        authService.verifyEmailCode(user.getEmail(), EmailVerifyCode.SCENE_CHANGE, req.emailCode());
         userMapper.update(null, new LambdaUpdateWrapper<User>()
                 .eq(User::getId, user.getId())
                 .set(User::getPassword, passwordEncoder.encode(req.newPassword())));

@@ -14,16 +14,16 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.blog.common.BizException;
 import com.blog.common.ErrorCode;
 import com.blog.config.AppProperties;
-import com.blog.dto.auth.ForgotPasswordRequest;
-import com.blog.dto.auth.ForgotPasswordResponse;
+import com.blog.dto.auth.EmailCodeRequest;
+import com.blog.dto.auth.EmailCodeResponse;
 import com.blog.dto.auth.LoginRequest;
 import com.blog.dto.auth.RegisterRequest;
 import com.blog.dto.auth.ResetPasswordRequest;
 import com.blog.dto.auth.TokenResponse;
 import com.blog.dto.user.UserResponse;
-import com.blog.entity.PasswordResetCode;
+import com.blog.entity.EmailVerifyCode;
 import com.blog.entity.User;
-import com.blog.mapper.PasswordResetCodeMapper;
+import com.blog.mapper.EmailVerifyCodeMapper;
 import com.blog.mapper.UserMapper;
 import com.blog.security.JwtTokenProvider;
 
@@ -33,20 +33,81 @@ public class AuthService {
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    private static final String SCENE_LABEL_REGISTER = "注册账号";
+    private static final String SCENE_LABEL_RESET = "重置密码";
+    private static final String SCENE_LABEL_CHANGE = "修改密码";
+
     private final UserMapper userMapper;
-    private final PasswordResetCodeMapper resetCodeMapper;
+    private final EmailVerifyCodeMapper emailCodeMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final AppProperties appProperties;
+    private final MailSenderService mailSenderService;
 
-    public AuthService(UserMapper userMapper, PasswordResetCodeMapper resetCodeMapper,
+    public AuthService(UserMapper userMapper, EmailVerifyCodeMapper emailCodeMapper,
                        PasswordEncoder passwordEncoder, JwtTokenProvider tokenProvider,
-                       AppProperties appProperties) {
+                       AppProperties appProperties, MailSenderService mailSenderService) {
         this.userMapper = userMapper;
-        this.resetCodeMapper = resetCodeMapper;
+        this.emailCodeMapper = emailCodeMapper;
         this.passwordEncoder = passwordEncoder;
         this.tokenProvider = tokenProvider;
         this.appProperties = appProperties;
+        this.mailSenderService = mailSenderService;
+    }
+
+    /**
+     * 发送邮箱验证码。
+     * scene=register：邮箱必须未被注册；scene=reset：邮箱必须是已注册用户的邮箱；
+     * scene=change：须登录且邮箱与当前用户绑定邮箱一致（在 Controller 层校验登录与归属）。
+     */
+    @Transactional
+    public EmailCodeResponse sendEmailCode(EmailCodeRequest req) {
+        AppProperties.EmailCode conf = appProperties.getEmailCode();
+        String email = req.email().trim().toLowerCase();
+        String scene = req.scene();
+        String sceneLabel = switch (scene) {
+            case EmailVerifyCode.SCENE_REGISTER -> SCENE_LABEL_REGISTER;
+            case EmailVerifyCode.SCENE_RESET -> SCENE_LABEL_RESET;
+            case EmailVerifyCode.SCENE_CHANGE -> SCENE_LABEL_CHANGE;
+            default -> throw new BizException(ErrorCode.BAD_REQUEST, "未知的验证码场景");
+        };
+
+        if (EmailVerifyCode.SCENE_REGISTER.equals(scene)
+                && userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, email)) > 0) {
+            throw new BizException(ErrorCode.EMAIL_EXISTS);
+        }
+        if (EmailVerifyCode.SCENE_RESET.equals(scene)
+                && userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, email)) == 0) {
+            throw new BizException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        EmailVerifyCode existing = selectCodeRow(email, scene);
+        if (existing != null && existing.getCreatedAt() != null
+                && existing.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(conf.getResendIntervalSeconds()))) {
+            throw new BizException(ErrorCode.RESET_CODE_TOO_FREQUENT);
+        }
+
+        String code = String.format("%06d", RANDOM.nextInt(1_000_000));
+        LocalDateTime now = LocalDateTime.now();
+        EmailVerifyCode row = new EmailVerifyCode();
+        row.setEmail(email);
+        row.setScene(scene);
+        row.setCode(code);
+        row.setExpiresAt(now.plusMinutes(conf.getExpireMinutes()));
+        row.setAttempts(0);
+        row.setCreatedAt(now);
+        row.setUpdatedAt(now);
+        emailCodeMapper.delete(new LambdaQueryWrapper<EmailVerifyCode>()
+                .eq(EmailVerifyCode::getEmail, email)
+                .eq(EmailVerifyCode::getScene, scene));
+        emailCodeMapper.insert(row);
+
+        boolean realSent = mailSenderService.sendVerifyCode(email, code, sceneLabel, conf.getExpireMinutes());
+        log.info("Email code generated scene={} email={} realSent={} expiresAt={}", scene, email, realSent, row.getExpiresAt());
+        return new EmailCodeResponse(true, maskEmail(email),
+                realSent ? null : code,
+                conf.getExpireMinutes() * 60L,
+                conf.getResendIntervalSeconds());
     }
 
     @Transactional
@@ -54,16 +115,18 @@ public class AuthService {
         if (userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getUsername, req.username())) > 0) {
             throw new BizException(ErrorCode.USERNAME_EXISTS);
         }
-        if (req.email() != null && !req.email().isBlank()
-                && userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, req.email())) > 0) {
+        String email = req.email().trim().toLowerCase();
+        if (userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getEmail, email)) > 0) {
             throw new BizException(ErrorCode.EMAIL_EXISTS);
         }
+        // 校验并消费注册验证码
+        verifyEmailCode(email, EmailVerifyCode.SCENE_REGISTER, req.emailCode());
 
         User user = new User();
         user.setUsername(req.username());
         user.setPassword(passwordEncoder.encode(req.password()));
         user.setNickname(req.nickname() == null || req.nickname().isBlank() ? req.username() : req.nickname());
-        user.setEmail(req.email() == null || req.email().isBlank() ? null : req.email());
+        user.setEmail(email);
         userMapper.insert(user);
 
         return buildTokenResponse(user);
@@ -80,6 +143,68 @@ public class AuthService {
         return buildTokenResponse(user);
     }
 
+    /**
+     * 重置密码：按邮箱找到用户，校验并消费 scene=reset 的验证码后更新密码。
+     */
+    @Transactional
+    public void resetPassword(ResetPasswordRequest req) {
+        String email = req.email().trim().toLowerCase();
+        User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getEmail, email).last("LIMIT 1"));
+        if (user == null) {
+            throw new BizException(ErrorCode.USER_NOT_FOUND);
+        }
+        verifyEmailCode(email, EmailVerifyCode.SCENE_RESET, req.code());
+
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, user.getId())
+                .set(User::getPassword, passwordEncoder.encode(req.newPassword())));
+        log.info("Password reset completed for user {}", user.getUsername());
+    }
+
+    /**
+     * 校验并消费邮箱验证码（供修改密码等场景复用）。
+     * 错误累计，达到上限后验证码作废。
+     */
+    @Transactional
+    public void verifyEmailCode(String email, String scene, String code) {
+        AppProperties.EmailCode conf = appProperties.getEmailCode();
+        EmailVerifyCode row = selectCodeRow(email, scene);
+        if (row == null || row.getExpiresAt() == null || row.getExpiresAt().isBefore(LocalDateTime.now())
+                || row.getAttempts() != null && row.getAttempts() >= conf.getMaxAttempts()) {
+            deleteCodeRow(email, scene);
+            throw new BizException(ErrorCode.RESET_CODE_INVALID);
+        }
+
+        if (!row.getCode().equals(code)) {
+            int attempts = (row.getAttempts() == null ? 0 : row.getAttempts()) + 1;
+            if (attempts >= conf.getMaxAttempts()) {
+                deleteCodeRow(email, scene);
+            } else {
+                emailCodeMapper.update(null, new LambdaUpdateWrapper<EmailVerifyCode>()
+                        .eq(EmailVerifyCode::getEmail, email)
+                        .eq(EmailVerifyCode::getScene, scene)
+                        .set(EmailVerifyCode::getAttempts, attempts));
+            }
+            log.info("Email code mismatch scene={} email={} attempts={}", scene, email, attempts);
+            throw new BizException(ErrorCode.RESET_CODE_INVALID);
+        }
+
+        deleteCodeRow(email, scene);
+    }
+
+    private EmailVerifyCode selectCodeRow(String email, String scene) {
+        return emailCodeMapper.selectOne(new LambdaQueryWrapper<EmailVerifyCode>()
+                .eq(EmailVerifyCode::getEmail, email)
+                .eq(EmailVerifyCode::getScene, scene)
+                .last("LIMIT 1"));
+    }
+
+    private void deleteCodeRow(String email, String scene) {
+        emailCodeMapper.delete(new LambdaQueryWrapper<EmailVerifyCode>()
+                .eq(EmailVerifyCode::getEmail, email)
+                .eq(EmailVerifyCode::getScene, scene));
+    }
+
     private TokenResponse buildTokenResponse(User user) {
         String token = tokenProvider.createToken(user.getId(), user.getUsername());
         UserResponse userResponse = new UserResponse(
@@ -89,84 +214,13 @@ public class AuthService {
         return new TokenResponse(token, "Bearer", tokenProvider.getExpireSeconds(), userResponse);
     }
 
-    /**
-     * 忘记密码：按用户名或邮箱查找用户，生成 6 位验证码（每用户仅保留最新一条）。
-     * 当前未接入邮件服务，验证码以「模拟发送」方式随响应返回（expose-code 可关闭）。
-     */
-    @Transactional
-    public ForgotPasswordResponse forgotPassword(ForgotPasswordRequest req) {
-        AppProperties.PasswordReset conf = appProperties.getPasswordReset();
-        User user = findUserByAccount(req.account());
-        if (user == null) {
-            throw new BizException(ErrorCode.USER_NOT_FOUND);
+    private static String maskEmail(String email) {
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return "***";
         }
-
-        PasswordResetCode existing = resetCodeMapper.selectById(user.getId());
-        if (existing != null && existing.getCreatedAt() != null
-                && existing.getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(conf.getResendIntervalSeconds()))) {
-            throw new BizException(ErrorCode.RESET_CODE_TOO_FREQUENT);
-        }
-
-        String code = String.format("%06d", RANDOM.nextInt(1_000_000));
-        LocalDateTime now = LocalDateTime.now();
-        PasswordResetCode row = new PasswordResetCode();
-        row.setUserId(user.getId());
-        row.setCode(code);
-        row.setExpiresAt(now.plusMinutes(conf.getExpireMinutes()));
-        row.setAttempts(0);
-        row.setCreatedAt(now);
-        row.setUpdatedAt(now);
-        resetCodeMapper.deleteById(user.getId());
-        resetCodeMapper.insert(row);
-
-        log.info("Password reset code generated for user {} (expires at {})", user.getUsername(), row.getExpiresAt());
-        return new ForgotPasswordResponse(true,
-                conf.isExposeCode() ? code : null,
-                conf.getExpireMinutes() * 60L,
-                conf.getResendIntervalSeconds());
-    }
-
-    /**
-     * 重置密码：校验验证码（错误累计，达到上限作废），通过后更新密码并删除验证码。
-     */
-    @Transactional
-    public void resetPassword(ResetPasswordRequest req) {
-        AppProperties.PasswordReset conf = appProperties.getPasswordReset();
-        User user = findUserByAccount(req.account());
-        if (user == null) {
-            throw new BizException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        PasswordResetCode row = resetCodeMapper.selectById(user.getId());
-        if (row == null || row.getExpiresAt() == null || row.getExpiresAt().isBefore(LocalDateTime.now())
-                || row.getAttempts() != null && row.getAttempts() >= conf.getMaxAttempts()) {
-            resetCodeMapper.deleteById(user.getId());
-            throw new BizException(ErrorCode.RESET_CODE_INVALID);
-        }
-
-        if (!row.getCode().equals(req.code())) {
-            int attempts = (row.getAttempts() == null ? 0 : row.getAttempts()) + 1;
-            if (attempts >= conf.getMaxAttempts()) {
-                resetCodeMapper.deleteById(user.getId());
-            } else {
-                resetCodeMapper.update(null, new LambdaUpdateWrapper<PasswordResetCode>()
-                        .eq(PasswordResetCode::getUserId, user.getId())
-                        .set(PasswordResetCode::getAttempts, attempts));
-            }
-            log.info("Password reset code mismatch for user {}, attempts={}", user.getUsername(), attempts);
-            throw new BizException(ErrorCode.RESET_CODE_INVALID);
-        }
-
-        userMapper.update(null, new LambdaUpdateWrapper<User>()
-                .eq(User::getId, user.getId())
-                .set(User::getPassword, passwordEncoder.encode(req.newPassword())));
-        resetCodeMapper.deleteById(user.getId());
-        log.info("Password reset completed for user {}", user.getUsername());
-    }
-
-    private User findUserByAccount(String account) {
-        return userMapper.selectOne(new LambdaQueryWrapper<User>()
-                .and(w -> w.eq(User::getUsername, account).or().eq(User::getEmail, account))
-                .last("LIMIT 1"));
+        String local = email.substring(0, at);
+        String prefix = local.substring(0, Math.min(2, local.length()));
+        return prefix + "***" + email.substring(at);
     }
 }

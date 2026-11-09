@@ -63,7 +63,7 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**").permitAll()
                         // 认证接口
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login",
-                                "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password").permitAll()
+                                "/api/v1/auth/email-code", "/api/v1/auth/reset-password").permitAll()
                         // 我自己 / 我的博客：必须认证（须放在通配 permitAll 之前）
                         .requestMatchers(HttpMethod.GET, "/api/v1/users/me", "/api/v1/users/me/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/blogs/my", "/api/v1/blogs/my/**").authenticated()

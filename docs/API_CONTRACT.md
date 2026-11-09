@@ -42,8 +42,9 @@
 | 40102 | 401 | 登录已过期，请重新登录 |
 | 40103 | 401 | 无效的登录凭证 |
 | 40104 | 400 | 原密码不正确 |
-| 40105 | 400 | 验证码错误或已过期（连续错 5 次作废，需重新发送） |
+| 40105 | 400 | 邮箱验证码错误或已过期（连续错 5 次作废，需重新发送） |
 | 40106 | 400 | 验证码发送过于频繁（60 秒内不可重复发送） |
+| 40107 | 400 | 当前账号未绑定邮箱，无法接收验证码 |
 | 40300 | 403 | 无权限执行此操作 |
 | 40400 | 404 | 资源不存在 |
 | 40401 | 404 | 用户不存在 |
@@ -69,7 +70,7 @@ Authorization: Bearer <accessToken>
 - 退出登录后原 token 立即失效（服务端黑名单，重启后黑名单清空）。
 - 收到 `code=40100/40102/40103` 时前端应清除本地 token 并跳转登录页。
 
-**公开接口（无需登录）**：注册、登录、忘记密码、重置密码、公开博客列表/详情、用户主页及用户已发布博客、分类列表/详情、标签列表、上传文件静态资源、Swagger。
+**公开接口（无需登录）**：注册、登录、邮箱验证码（scene=register/reset）、重置密码、公开博客列表/详情、用户主页及用户已发布博客、分类列表/详情、标签列表、上传文件静态资源、Swagger。
 
 ### 1.5 分页结构
 
@@ -128,11 +129,14 @@ Authorization: Bearer <accessToken>
 | username | string | 是 | 3-30 位字母/数字/下划线 |
 | password | string | 是 | 6-32 位 |
 | nickname | string | 否 | 最长 50，缺省取 username |
-| email | string | 否 | 邮箱格式，唯一 |
+| email | string | 是 | 邮箱格式，唯一；须先通过 2.5 发送 scene=`register` 验证码 |
+| emailCode | string | 是 | 6 位数字邮箱验证码（scene=`register`） |
 
 响应 `data`：`TokenResponse`（结构见 2.3）。
 
-错误：`40901` 用户名已占用、`40902` 邮箱已占用、`40006` 校验失败。
+错误：`40901` 用户名已占用、`40902` 邮箱已占用、`40105` 邮箱验证码错误或已过期、`40006` 校验失败。
+
+> **邮箱为必填项**（破坏性变更）：注册前必须先调 `POST /auth/email-code`（scene=`register`）向该邮箱发送验证码。
 
 ### 2.2 登录 `POST /api/v1/auth/login`（公开）
 
@@ -165,21 +169,28 @@ Authorization: Bearer <accessToken>
 
 使当前 token 失效。响应：`{"code":0,"message":"ok"}`。
 
-### 2.5 忘记密码 `POST /api/v1/auth/forgot-password`（公开）
+### 2.5 发送邮箱验证码 `POST /api/v1/auth/email-code`（公开；scene=`change` 需登录）
+
+统一验证码发送接口，三个场景共用（替换原 forgot-password）：
+
+| scene | 认证 | 校验规则 | 用途 |
+| --- | --- | --- | --- |
+| `register` | 公开 | 邮箱未被注册（否则 `40902`） | 注册 2.1 |
+| `reset` | 公开 | 邮箱必须是已注册用户的邮箱（否则 `40401`） | 重置密码 2.6 |
+| `change` | 需登录 | 邮箱必须与当前用户绑定邮箱一致（否则 `40300`）；未绑定邮箱返回 `40107` | 修改密码 3.6 |
 
 请求体：
 
 ```json
-{ "account": "alice 或 alice@test.com" }
+{ "email": "alice@test.com", "scene": "register" }
 ```
-
-> `account` 支持**用户名或邮箱**。
 
 响应 `data`：
 
 ```json
 {
   "sent": true,
+  "sentTo": "al***@test.com",
   "devCode": "455788",
   "expiresInSeconds": 600,
   "resendIntervalSeconds": 60
@@ -189,33 +200,32 @@ Authorization: Bearer <accessToken>
 | 字段 | 说明 |
 | --- | --- |
 | sent | 固定 `true` |
-| devCode | 6 位验证码。**当前未接入邮件服务，为「模拟发送」：验证码直接随响应返回**；将来接入 SMTP 后此字段不再输出（接口契约不变），前端届时改为提示「验证码已发送至邮箱」 |
+| sentTo | 脱敏后的收件邮箱（`al***@test.com`） |
+| devCode | 6 位验证码。**仅模拟模式返回**：SMTP 未配置时验证码随响应返回（联调用）；配置 SMTP 后此字段不再输出（契约不变），前端改为提示「验证码已发送至邮箱，请查收」 |
 | expiresInSeconds | 验证码有效期（秒，当前 600 = 10 分钟） |
 | resendIntervalSeconds | 可再次发送的最小间隔（秒，当前 60） |
 
-前端流程建议：输入账号 → 调本接口 → 进入「输入验证码 + 新密码」步骤（开发阶段可将 `devCode` 展示出来或直接预填，方便联调）。
+通用规则：同一「邮箱 + 场景」60 秒内不可重复发送（`40106`）；验证码连续输错 5 次作废（`40105`），需重新发送；验证成功后立即失效。
 
-错误：`40401` 用户不存在、`40106` 发送过于频繁（60 秒内不可重复）、`40006` 校验失败。
+错误：`40902`（register）邮箱已被占用、`40401`（reset）用户不存在、`40100`（change）未登录、`40107`（change）账号未绑定邮箱、`40300`（change）邮箱与绑定邮箱不一致、`40106` 发送过于频繁、`40006` 校验失败。
 
 ### 2.6 重置密码 `POST /api/v1/auth/reset-password`（公开）
 
 请求体：
 
 ```json
-{ "account": "alice", "code": "455788", "newPassword": "newpass123" }
+{ "email": "alice@test.com", "code": "455788", "newPassword": "newpass123" }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| account | string | 是 | 用户名或邮箱，须与接收验证码的账号一致 |
-| code | string | 是 | 6 位数字验证码 |
+| email | string | 是 | 注册时绑定的邮箱 |
+| code | string | 是 | 6 位数字验证码（scene=`reset`） |
 | newPassword | string | 是 | 6-32 位 |
 
 响应：`{"code":0,"message":"ok"}`（`data` 为 null）。成功后用新密码重新登录。
 
 错误：`40401` 用户不存在、`40105` 验证码错误或已过期、`40006` 校验失败。
-
-> 防爆破：验证码**连续输错 5 次即作废**，需重新发送；验证码有效期 10 分钟，验证成功后立即失效。
 
 ---
 
@@ -267,17 +277,20 @@ Authorization: Bearer <accessToken>
 请求体：
 
 ```json
-{ "oldPassword": "旧密码", "newPassword": "6-32 位新密码" }
+{ "oldPassword": "旧密码", "newPassword": "6-32 位新密码", "emailCode": "455788" }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | oldPassword | string | 是 | 当前密码，校验错误返回 `40104` |
 | newPassword | string | 是 | 6-32 位 |
+| emailCode | string | 是 | 6 位数字邮箱验证码（scene=`change`，发送到绑定邮箱） |
 
 响应：`{"code":0,"message":"ok"}`（`data` 为 null）。当前 token 修改后仍有效，前端建议引导用户重新登录。
 
-错误：`40104` 原密码不正确、`40006` 校验失败。
+错误：`40104` 原密码不正确、`40107` 账号未绑定邮箱、`40105` 邮箱验证码错误或已过期、`40006` 校验失败。
+
+> 前端流程建议：设置页「修改密码」→ 点击「发送验证码」按钮（调 2.5，scene=`change`，email 传当前用户绑定邮箱）→ 输入旧密码 / 新密码 / 验证码 → 提交。
 
 ---
 

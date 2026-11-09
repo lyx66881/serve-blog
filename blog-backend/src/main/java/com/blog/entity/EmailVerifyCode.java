@@ -7,13 +7,22 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
- * 忘记密码验证码：每个用户仅保留最新一条（user_id 为主键）。
+ * 邮箱验证码（scene：register / reset / change）。
+ * 每个「邮箱 + 场景」仅保留最新一条验证码，验证成功或作废后删除。
  */
-@TableName("password_reset_codes")
-public class PasswordResetCode {
+@TableName("email_verify_codes")
+public class EmailVerifyCode {
 
-    @TableId(value = "user_id", type = IdType.INPUT)
-    private Long userId;
+    public static final String SCENE_REGISTER = "register";
+    public static final String SCENE_RESET = "reset";
+    public static final String SCENE_CHANGE = "change";
+
+    @TableId(value = "id", type = IdType.AUTO)
+    private Long id;
+
+    private String email;
+
+    private String scene;
 
     private String code;
 
@@ -25,8 +34,12 @@ public class PasswordResetCode {
 
     private LocalDateTime updatedAt;
 
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getScene() { return scene; }
+    public void setScene(String scene) { this.scene = scene; }
     public String getCode() { return code; }
     public void setCode(String code) { this.code = code; }
     public LocalDateTime getExpiresAt() { return expiresAt; }

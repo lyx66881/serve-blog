@@ -22,6 +22,19 @@ spring:
   jackson:
     # 响应中为 null 的字段不输出，前端 TS 可用可选字段处理
     default-property-inclusion: non_null
+  mail:
+    # SMTP 配置（生产环境通过环境变量注入，如 MAIL_HOST=smtp.qq.com）
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.ssl.enable: true
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 15000
+      mail.smtp.writetimeout: 15000
 
 mybatis-plus:
   configuration:
@@ -49,15 +62,18 @@ app:
   cors:
     # 允许的跨域来源，逗号分隔；* 表示全部放行（仅限开发）
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
-  password-reset:
+  mail:
+    # false = 模拟模式（验证码仅记日志并随响应返回 devCode）；配置好 SMTP 后设为 true
+    enabled: ${MAIL_ENABLED:false}
+    # 发件人，须与 SMTP 账号一致
+    from: ${MAIL_FROM:no-reply@blog.local}
+  email-code:
     # 验证码有效期（分钟）
     expire-minutes: 10
     # 可再次发送的最小间隔（秒）
     resend-interval-seconds: 60
     # 验证失败次数上限，达到后验证码作废
     max-attempts: 5
-    # 未接入邮件服务前是否将验证码随响应返回（模拟发送）；接入 SMTP 后应设为 false
-    expose-code: ${RESET_CODE_EXPOSE:true}
 
 springdoc:
   swagger-ui:

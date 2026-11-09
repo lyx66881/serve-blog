@@ -8,6 +8,7 @@
 > - `V3__add_is_public_to_blogs.sql` — 博客公开性字段（公开才参与公开列表排名）
 > - `V4__add_password_reset_codes.sql` — 忘记密码验证码表
 > - `V5__add_category_learning_notes.sql` — 新增默认分类「学习笔记」
+> - `V6__replace_with_email_verify_codes.sql` — 统一邮箱验证码表（替代 password_reset_codes）
 >
 > 应用启动时自动执行迁移（`spring.flyway.enabled=true`），禁止手工改库结构。
 
@@ -116,17 +117,21 @@ users 1 ──── n uploaded_files
 
 索引：idx_uploader (uploader_id)。删除文件 = 删磁盘文件 + 删记录（物理删除）。
 
-### 2.7 password_reset_codes（忘记密码验证码表）
+### 2.7 email_verify_codes（邮箱验证码表）
+
+注册 / 重置密码 / 修改密码三个场景统一使用（V6 起，替代 password_reset_codes）。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| user_id | BIGINT UNSIGNED | PK，用户 ID（对应 users.id，每用户仅保留最新一条） |
+| id | BIGINT UNSIGNED | PK，自增 |
+| email | VARCHAR(100) | 接收验证码的邮箱 |
+| scene | VARCHAR(16) | 场景：register / reset / change |
 | code | VARCHAR(6) | 6 位数字验证码 |
 | expires_at | DATETIME | 过期时间（默认 10 分钟） |
 | attempts | INT UNSIGNED | 验证失败次数（默认上限 5 次，达到后作废） |
 | created_at / updated_at | DATETIME | 同上 |
 
-索引：PK(user_id)、idx_code。验证成功 / 过期 / 作废后物理删除该行。
+索引：PK(id)、UNIQUE(email, scene)——每个「邮箱 + 场景」仅保留最新一条。验证成功 / 过期 / 作废后物理删除该行。
 
 ## 3. 设计约定
 
