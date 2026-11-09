@@ -49,6 +49,15 @@ app:
   cors:
     # 允许的跨域来源，逗号分隔；* 表示全部放行（仅限开发）
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  password-reset:
+    # 验证码有效期（分钟）
+    expire-minutes: 10
+    # 可再次发送的最小间隔（秒）
+    resend-interval-seconds: 60
+    # 验证失败次数上限，达到后验证码作废
+    max-attempts: 5
+    # 未接入邮件服务前是否将验证码随响应返回（模拟发送）；接入 SMTP 后应设为 false
+    expose-code: ${RESET_CODE_EXPOSE:true}
 
 springdoc:
   swagger-ui:

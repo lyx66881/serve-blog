@@ -5,6 +5,9 @@
 >
 > - `V1__init_schema.sql` — 初始表结构
 > - `V2__seed_categories.sql` — 默认分类种子数据
+> - `V3__add_is_public_to_blogs.sql` — 博客公开性字段（公开才参与公开列表排名）
+> - `V4__add_password_reset_codes.sql` — 忘记密码验证码表
+> - `V5__add_category_learning_notes.sql` — 新增默认分类「学习笔记」
 >
 > 应用启动时自动执行迁移（`spring.flyway.enabled=true`），禁止手工改库结构。
 
@@ -74,7 +77,7 @@ users 1 ──── n uploaded_files
 | deleted | TINYINT | DEFAULT 0 | 逻辑删除 |
 | created_at / updated_at | DATETIME | NOT NULL | 同上 |
 
-种子数据：前端开发、后端开发、工具与效率、生活随笔。
+种子数据：前端开发、后端开发、工具与效率、生活随笔、学习笔记（V5）。
 
 ### 2.4 tags（标签表）
 
@@ -112,6 +115,18 @@ users 1 ──── n uploaded_files
 | created_at | DATETIME | 上传时间 |
 
 索引：idx_uploader (uploader_id)。删除文件 = 删磁盘文件 + 删记录（物理删除）。
+
+### 2.7 password_reset_codes（忘记密码验证码表）
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| user_id | BIGINT UNSIGNED | PK，用户 ID（对应 users.id，每用户仅保留最新一条） |
+| code | VARCHAR(6) | 6 位数字验证码 |
+| expires_at | DATETIME | 过期时间（默认 10 分钟） |
+| attempts | INT UNSIGNED | 验证失败次数（默认上限 5 次，达到后作废） |
+| created_at / updated_at | DATETIME | 同上 |
+
+索引：PK(user_id)、idx_code。验证成功 / 过期 / 作废后物理删除该行。
 
 ## 3. 设计约定
 

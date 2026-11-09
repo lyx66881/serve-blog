@@ -16,6 +16,7 @@ import com.blog.common.BizException;
 import com.blog.common.ErrorCode;
 import com.blog.common.PageResult;
 import com.blog.dto.blog.BlogSummaryResponse;
+import com.blog.dto.user.ChangePasswordRequest;
 import com.blog.dto.user.UpdateProfileRequest;
 import com.blog.dto.user.UserProfileResponse;
 import com.blog.dto.user.UserResponse;
@@ -50,6 +51,13 @@ public class UserController {
     @PutMapping("/me")
     public ApiResponse<UserResponse> updateMe(@Valid @RequestBody UpdateProfileRequest request) {
         return ApiResponse.ok(userService.updateProfile(request));
+    }
+
+    @Operation(summary = "修改密码", description = "校验原密码后更新为新密码；成功后建议前端引导用户重新登录")
+    @PutMapping("/me/password")
+    public ApiResponse<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        userService.changePassword(request);
+        return ApiResponse.ok();
     }
 
     @Operation(summary = "上传头像", description = "multipart 上传，直接更新当前用户头像")

@@ -27,6 +27,9 @@ public enum ErrorCode {
     INVALID_CREDENTIALS(40101, 401, "用户名或密码错误"),
     TOKEN_EXPIRED(40102, 401, "登录已过期，请重新登录"),
     TOKEN_INVALID(40103, 401, "无效的登录凭证"),
+    INVALID_OLD_PASSWORD(40104, 400, "原密码不正确"),
+    RESET_CODE_INVALID(40105, 400, "验证码错误或已过期"),
+    RESET_CODE_TOO_FREQUENT(40106, 400, "验证码发送过于频繁，请稍后再试"),
 
     FORBIDDEN(40300, 403, "无权限执行此操作"),
 

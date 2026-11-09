@@ -2,6 +2,7 @@ package com.blog.service;
 
 import java.time.LocalDateTime;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -10,6 +11,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.blog.common.BizException;
 import com.blog.common.ErrorCode;
+import com.blog.dto.user.ChangePasswordRequest;
 import com.blog.dto.user.UpdateProfileRequest;
 import com.blog.dto.user.UserProfileResponse;
 import com.blog.dto.user.UserResponse;
@@ -28,11 +30,14 @@ public class UserService {
     private final UserMapper userMapper;
     private final BlogMapper blogMapper;
     private final FileStorageService fileStorageService;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserMapper userMapper, BlogMapper blogMapper, FileStorageService fileStorageService) {
+    public UserService(UserMapper userMapper, BlogMapper blogMapper, FileStorageService fileStorageService,
+                       PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
         this.blogMapper = blogMapper;
         this.fileStorageService = fileStorageService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public UserResponse getCurrentUser() {
@@ -74,6 +79,20 @@ public class UserService {
                 .set(User::getAvatar, stored.url()));
 
         return toSelfResponse(requireUser(userId));
+    }
+
+    /**
+     * 修改密码：校验原密码后更新为新密码。
+     */
+    @Transactional
+    public void changePassword(ChangePasswordRequest req) {
+        User user = requireUser(SecurityUtils.currentUserId());
+        if (!passwordEncoder.matches(req.oldPassword(), user.getPassword())) {
+            throw new BizException(ErrorCode.INVALID_OLD_PASSWORD);
+        }
+        userMapper.update(null, new LambdaUpdateWrapper<User>()
+                .eq(User::getId, user.getId())
+                .set(User::getPassword, passwordEncoder.encode(req.newPassword())));
     }
 
     /**
