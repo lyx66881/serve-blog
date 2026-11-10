@@ -49,7 +49,7 @@ public class MailSenderService {
             MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
             helper.setFrom(appProperties.getMail().getFrom());
             helper.setTo(to);
-            helper.setSubject("博客验证码：" + sceneLabel);
+            helper.setSubject("墨迹验证码：" + sceneLabel);
             helper.setText(buildHtml(code, sceneLabel, expireMinutes), true);
             sender.send(message);
             log.info("验证码邮件已发送 to={} scene={}", to, sceneLabel);
@@ -63,7 +63,7 @@ public class MailSenderService {
     private String buildHtml(String code, String sceneLabel, int expireMinutes) {
         return """
                 <div style="max-width:520px;margin:0 auto;padding:32px 28px;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#f7f8fa;border-radius:12px;">
-                  <h2 style="margin:0 0 8px;font-size:20px;color:#1f2329;">博客账号 %s</h2>
+                  <h2 style="margin:0 0 8px;font-size:20px;color:#1f2329;">墨迹账号 %s</h2>
                   <p style="margin:0 0 20px;font-size:14px;color:#51565d;">你的验证码如下，%d 分钟内有效。请勿泄露给他人。</p>
                   <div style="display:inline-block;padding:14px 28px;font-size:28px;font-weight:700;letter-spacing:8px;color:#1f2329;background:#ffffff;border-radius:8px;border:1px solid #e5e6eb;">%s</div>
                   <p style="margin:24px 0 0;font-size:12px;color:#8a919f;">如果这不是你的操作，请忽略本邮件。</p>
