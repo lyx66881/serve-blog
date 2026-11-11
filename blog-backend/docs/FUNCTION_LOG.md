@@ -292,3 +292,9 @@ blog-backend/
 - 变更：拉取 a1d1ca3「feat: 社交关系接入真实接口（关注/粉丝/拉黑/私信权限）」（新增 use-social-sync 等），构建与部署方式同上一条。
 - 验证：service active；本机 3000 / 80 首页 / API 反代均 200；外网 /、/article/36、/users/16/social、/messages 均 200。
 - 回滚：旧版已移至 /opt/web-blog.bak（回滚命令同上一条）。
+
+### [2026-11-11] web-blog 前端部署 45bc9f6（私信 WS 生产环境修复版）
+- 变更：拉取 45bc9f6「fix: 私信 WS 生产环境禁用根因 + 连接稳定性 + Safari 卡顿」——修复 use-chat-socket 在同源相对 API_BASE（/api/v1）下 WS 被误判禁用的根因（此前生产端从未建立实时连接，消息只能靠刷新拉取，即"接收慢"）。部署前经实测确认服务端推送延迟仅 22~41ms，排除服务端因素。
+- 执行方式：npm ci → NEXT_PUBLIC_API_BASE_URL=/api/v1 构建 standalone → scp → 旧版移至 /opt/web-blog.bak → 解包启动。
+- 验证：service active；本机 3000/80/API 均 200；外网 /、/article/36、/users/16、/users/16/social、/messages 均 200。WS 实连情况待用户侧回归观察（服务端日志 WS connected 应稳定不抖动）。
+- 回滚：mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
