@@ -268,9 +268,13 @@ Authorization: Bearer <accessToken>
 
 错误：`40401` 用户不存在。注意：不含 email。
 
-### 3.5 用户已发布博客 `GET /api/v1/users/{id}/blogs`（公开）
+### 3.5 用户已发布博客 `GET /api/v1/users/{id}/blogs`（公开，可选认证）
 
 参数：`page`、`pageSize`。响应 `data`：分页结构，`items` 为 `BlogSummaryResponse[]`（仅已发布）。
+
+**可见性规则**：未登录或访问他人主页时，仅返回 `published` 且 `isPublic=true` 的博客；**携带 token 且访问自己主页时（`Authorization` 头中用户即 `{id}` 本人），额外包含其未公开（`isPublic=false`）的已发布博客**——即「自己的主页自己能看到全部已发布文章，别人只能看到公开的」。前端访问用户主页时应正常携带登录 token（全局请求拦截器带上即可），未登录访问行为不变。
+
+同理，`GET /api/v1/users/{id}` 返回的 `blogCount`：本人访问时统计含未公开已发布文章，他人访问仅统计公开文章。
 
 ### 3.6 修改密码 `PUT /api/v1/users/me/password`（需登录）
 

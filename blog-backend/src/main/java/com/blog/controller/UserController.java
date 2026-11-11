@@ -69,18 +69,18 @@ public class UserController {
         return ApiResponse.ok(userService.updateAvatar(file));
     }
 
-    @Operation(summary = "用户公开主页", description = "公开接口：基本信息 + 已发布博客数")
+    @Operation(summary = "用户公开主页", description = "公开接口：基本信息 + 已发布博客数；本人访问时统计含未公开文章")
     @GetMapping("/{id}")
     public ApiResponse<UserProfileResponse> profile(@PathVariable Long id) {
-        return ApiResponse.ok(userService.getProfile(id));
+        return ApiResponse.ok(userService.getProfile(id, SecurityUtils.currentUserIdOrNull()));
     }
 
-    @Operation(summary = "用户已发布博客", description = "公开接口：分页返回指定用户已发布博客")
+    @Operation(summary = "用户已发布博客", description = "公开接口：分页返回指定用户已发布博客；本人访问时包含未公开文章，他人仅见公开文章")
     @GetMapping("/{id}/blogs")
     public ApiResponse<PageResult<BlogSummaryResponse>> userBlogs(
             @PathVariable Long id,
             @RequestParam(defaultValue = "1") Long page,
             @RequestParam(defaultValue = "10") Long pageSize) {
-        return ApiResponse.ok(blogService.listPublic(page, pageSize, null, null, null, id, null));
+        return ApiResponse.ok(blogService.listByAuthor(page, pageSize, id, SecurityUtils.currentUserIdOrNull()));
     }
 }

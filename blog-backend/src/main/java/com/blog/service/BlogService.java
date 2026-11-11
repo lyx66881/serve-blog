@@ -223,6 +223,25 @@ public class BlogService {
     }
 
     /**
+     * 用户主页博客列表（仅已发布）：访问者为主页主人时包含未公开文章，他人仅见公开文章。
+     */
+    public PageResult<BlogSummaryResponse> listByAuthor(Long page, Long pageSize, Long authorId, Long viewerId) {
+        long[] paging = clampPaging(page, pageSize);
+        boolean owner = viewerId != null && viewerId.equals(authorId);
+        LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>()
+                .eq(Blog::getStatus, Blog.STATUS_PUBLISHED)
+                .eq(Blog::getAuthorId, authorId)
+                .select(Blog.class, f -> !LIST_EXCLUDED_COLUMNS.contains(f.getColumn()));
+        if (!owner) {
+            wrapper.eq(Blog::getIsPublic, 1);
+        }
+        wrapper.orderByDesc(Blog::getPublishedAt).orderByDesc(Blog::getCreatedAt);
+
+        Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
+    }
+
+    /**
      * 我的博客列表（含草稿 / 下架），可选按状态筛选。
      */
     public PageResult<BlogSummaryResponse> listMine(String status, Long page, Long pageSize) {

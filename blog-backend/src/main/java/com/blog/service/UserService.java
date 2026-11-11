@@ -103,13 +103,18 @@ public class UserService {
     }
 
     /**
-     * 用户公开主页：基本信息 + 已发布博客数。
+     * 用户公开主页：基本信息 + 已发布博客数；本人访问时统计含未公开文章，他人仅统计公开文章。
      */
-    public UserProfileResponse getProfile(Long userId) {
+    public UserProfileResponse getProfile(Long userId, Long viewerId) {
         User user = requireUser(userId);
-        long blogCount = blogMapper.selectCount(new LambdaQueryWrapper<Blog>()
+        LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>()
                 .eq(Blog::getAuthorId, userId)
-                .eq(Blog::getStatus, Blog.STATUS_PUBLISHED));
+                .eq(Blog::getStatus, Blog.STATUS_PUBLISHED);
+        boolean owner = viewerId != null && viewerId.equals(userId);
+        if (!owner) {
+            wrapper.eq(Blog::getIsPublic, 1);
+        }
+        long blogCount = blogMapper.selectCount(wrapper);
         return new UserProfileResponse(
                 user.getId(), user.getUsername(), user.getNickname(),
                 user.getAvatar(), user.getBio(), user.getCreatedAt(), blogCount);
