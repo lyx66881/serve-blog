@@ -287,3 +287,8 @@ blog-backend/
 - 验证：web-blog.service active；本机 3000、80 端口首页、/api/v1 反代均 200；外网验证 /（首页）、/article/36（文章页）、/users/16（用户主页）、/users/16/social（新社交页）、/messages（私信页）均 200。
 - 回滚：服务器上 rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
 - 备注：前端路由为 /article/{id}（非 /blogs/{id}）；/opt/web-blog 非 git 仓库，部署为 standalone 产物整体替换；服务器无 .env，API 地址构建时注入 NEXT_PUBLIC_API_BASE_URL=/api/v1（走 80 反代）。
+
+### [2026-11-11] web-blog 前端再次更新部署（社交关系接入真实接口）
+- 变更：拉取 a1d1ca3「feat: 社交关系接入真实接口（关注/粉丝/拉黑/私信权限）」（新增 use-social-sync 等），构建与部署方式同上一条。
+- 验证：service active；本机 3000 / 80 首页 / API 反代均 200；外网 /、/article/36、/users/16/social、/messages 均 200。
+- 回滚：旧版已移至 /opt/web-blog.bak（回滚命令同上一条）。
