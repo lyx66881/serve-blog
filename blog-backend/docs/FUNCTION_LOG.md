@@ -279,3 +279,11 @@ blog-backend/
 - 执行方式：本地 mvn package → scp 部署重启（本次无 DB 变更，无需备份）。
 - 验证：已登录 + 空关注列表（/users/16/following）返回 {items:[],total:0} 200；已登录 + 空粉丝列表、非空列表、匿名场景均正常；回归 blogs/评论 200。测试账号已清理。
 - 回滚：换回上一版 jar 重启即可（fix 前版本为 fix 后 17:08 构建之前的 16:50 构建产物）。
+
+### [2026-11-11] web-blog 前端更新部署（含社交关系页面）
+- 对象：前端仓库 github.com/lyx66881/web-blog（main 分支，本地 /tmp/web-blog）→ 服务器 /opt/web-blog。
+- 变更：拉取 efee01c「feat: 社交关系页面先行——关注/粉丝、拉黑、私信权限」（含新增 /users/[id]/social 页面、social store、use-chat-socket 等；此前 7680df2 私信视觉重构、cb3c0ca 首页精选修正、55f482e 私信功能、7694769 评论对接）。NEXT_PUBLIC_API_BASE_URL=/api/v1 构建 standalone 产物（.next/standalone + .next/static + public 打包 30M）。
+- 执行方式：git pull → npm ci → npm run build → 打包 scp → 服务器：停 web-blog → 旧版整体保留为 /opt/web-blog.bak → 解包新版 → 启动。
+- 验证：web-blog.service active；本机 3000、80 端口首页、/api/v1 反代均 200；外网验证 /（首页）、/article/36（文章页）、/users/16（用户主页）、/users/16/social（新社交页）、/messages（私信页）均 200。
+- 回滚：服务器上 rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
+- 备注：前端路由为 /article/{id}（非 /blogs/{id}）；/opt/web-blog 非 git 仓库，部署为 standalone 产物整体替换；服务器无 .env，API 地址构建时注入 NEXT_PUBLIC_API_BASE_URL=/api/v1（走 80 反代）。
