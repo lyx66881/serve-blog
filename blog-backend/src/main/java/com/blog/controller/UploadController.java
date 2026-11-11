@@ -1,5 +1,6 @@
 package com.blog.controller;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -33,18 +34,23 @@ public class UploadController {
         this.uploadService = uploadService;
     }
 
-    @Operation(summary = "上传图片", description = "multipart/form-data；type: avatar / cover / article / chat（默认 article）")
+    @Operation(summary = "上传图片", description = "multipart/form-data；type: avatar / cover / article / chat（默认 article）。type 同时出现在 query 与 form 时取一致值，不一致报错")
     @PostMapping("/image")
     public ApiResponse<UploadResponse> uploadImage(
             @RequestPart("file") MultipartFile file,
-            @RequestParam(defaultValue = "article") String type) {
+            @RequestParam(defaultValue = "article") String[] type) {
         if (file == null || file.isEmpty()) {
             throw new BizException(ErrorCode.PARAM_INVALID, "上传文件不能为空");
         }
-        if (!LocalFileStorageService.BIZ_TYPES.contains(type)) {
+        // query 与 form 同时携带 type 时 Spring 会拿到多值数组：同值去重放行，矛盾值明确报错
+        String biz = type[0];
+        if (type.length > 1 && !Arrays.stream(type).allMatch(t -> t.equals(biz))) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "type 参数重复且不一致");
+        }
+        if (!LocalFileStorageService.BIZ_TYPES.contains(biz)) {
             throw new BizException(ErrorCode.PARAM_INVALID, "type 仅支持 avatar / cover / article / chat");
         }
-        return ApiResponse.ok(uploadService.uploadImage(file, type));
+        return ApiResponse.ok(uploadService.uploadImage(file, biz));
     }
 
     @Operation(summary = "删除已上传文件", description = "仅上传者本人可删除；文件被博客引用时删除会导致图片失效")

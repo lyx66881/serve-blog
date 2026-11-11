@@ -311,3 +311,11 @@ blog-backend/
 - 执行方式：mvn package → 备份（/root/db-backups/blog_platform_pre_chatimg_20261111_175703.sql.gz、blog-backend-pre-chatimg.jar）→ scp 部署 → Flyway 自动迁移。
 - 验证：E2E 9 项全过（chat 图上传、发图+配文+宽高、文本回归、4 类异常码、会话预览「[图片] …」、历史含图、WS 推送 203ms 含图片字段）；回归 blogs/评论/首页 200；测试数据（soc_% 用户、消息、会话、上传记录、/data/blog/uploads/chat）已全部清理。
 - 回滚：恢复备份 jar + SQL `ALTER TABLE messages DROP COLUMN msg_type, DROP COLUMN image_url, DROP COLUMN image_width, DROP COLUMN image_height;`。
+
+### [2026-11-11] 修复：POST /upload/image 的 type 同时出现在 query 与 formData 时误报 40006
+- 现象：type 只传一处正常；两处都传同一值（如 ?type=chat + form type=chat）报「type 仅支持 avatar / cover / article / chat」。
+- 根因：Spring 对多值请求参数绑定到 String 单值时按「数组转字符串」规则逗号拼接（"chat,chat"），不在白名单导致校验失败。
+- 修复：UploadController 的 type 参数改为 String[]——同值去重放行（取第一个），矛盾值报新错误「type 参数重复且不一致」（仍 40006）。
+- 执行方式：mvn package → scp 部署 → 重启。无 DB 变更。
+- 验证：5 场景 E2E（仅 query / 仅 form / 两处同值 / 两处矛盾值 ×2）全部符合预期；回归 blogs/评论/首页 200、无 token 访问私信 401；测试用户与上传文件已清理。
+- 回滚：恢复备份 jar /opt/blog-backend/blog-backend-pre-chatimg.jar 并重启。
