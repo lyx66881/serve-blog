@@ -210,3 +210,16 @@ blog-backend/
 
 ### [2026-11-11] 变更记录约定补充
 - 「编辑精选/热门」定位属于内容运营范畴：后续新增文章若影响热门前五的构成，需在本文件记录并说明是否符合「AI 未来展望与 Agent」定位。
+
+### [2026-11-11] 更正：前端已部署（修正上文「博客前端未部署」的说法）
+- 勘误：本文件早前记录「博客前端未部署（80 端口为 LAMP 默认页）」不属实。实际情况：前端 Next.js 应用由 web-blog.service 运行在 3000 端口，Apache 80 已配置反代（/ → 3000，/api/v1 → 8080，/uploads → 8080），LAMP 默认页仅在未反代的路径下残留。
+
+### [2026-11-11] web-blog 前端最新代码部署到服务器
+- 源码：github.com/lyx66881/web-blog，main@f0b2b48（含文章路由 slug 化、搜索/筛选修复、图片加载失败隐藏等最新提交）。
+- 构建方式（本地）：npm ci → next build，next.config.ts 增加 output:"standalone"，构建时注入 NEXT_PUBLIC_API_BASE_URL=/api/v1（全站走同源相对路径，Mock 自动失效；图片 /uploads/* 与 API /api/v1/* 均由 Apache 反代到 8080，无 CORS）。
+- 服务器变更：
+  - 部署目录 /opt/web-blog 替换为 standalone 产物（server.js + 精简 node_modules + .next + public），旧版本备份于 /opt/web-blog.bak-20261111（确认稳定后可删除）；
+  - systemd 单元 web-blog.service 更新为 ExecStart=node server.js（PORT=3000，HOSTNAME=0.0.0.0，Restart=always），开机自启；
+  - Apache 反代沿用既有配置（httpd.conf 535-540 行），未改动。
+- 验证：80 首页 200（墨迹 Inkwell）；/api/v1/blogs?sort=hot 经 80 返回真实数据（热门第一 id=36）；/uploads 封面 200 image/jpeg；/article/36、/login 路由 200。
+- 回滚：systemctl stop web-blog && rm -rf /opt/web-blog && mv /opt/web-blog.bak-20261111 /opt/web-blog && systemctl start web-blog（旧单元文件 ExecStart=next start，需还原）。
