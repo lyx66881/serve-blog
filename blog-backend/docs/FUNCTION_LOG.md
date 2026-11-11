@@ -248,3 +248,13 @@ blog-backend/
 - 执行方式：本地编码 → mvn package → 备份（DB: /root/db-backups/blog_platform_pre_chat_20261111_154310.sql.gz；旧 jar: /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261111_154310；httpd.conf: httpd.conf.bak_20261111_154310）→ Apache 配置 wstunnel + graceful → scp 新 jar → systemctl restart blog-backend → Flyway 自动执行 V9。
 - 验证：E2E 全链路通过（临时测试用户 chat_test_a/b，已清理）——发私信自动建会话、B 会话列表未读 1、拉历史自动置已读且 A 视角 read=true、B 回复后 A unread-total 正确；错误链路（发自己 40006/对方不存在 40401/空内容 40006/未登录 40100/超长 40006）；WS 链路：无 token/坏 token 握手 401、直连 8080 与经 Apache 80 均握手 101、B 在线经 WS 实时收到 A 通过 REST 发的消息（{"type":"message"}）与 pong 心跳；修复 totalUnred NPE（select 未带 userAId/userBId）；回归确认 80 首页 200、/api/v1/blogs 200、Swagger 200。测试数据已全部清除（messages/conversations 0 行，测试用户已删）。
 - 回滚：jar/DB 回滚同上条方式（备份 bak_20261111_154310）；表结构回滚：DROP TABLE messages; DROP TABLE conversations;；Apache 回滚：还原 httpd.conf.bak_20261111_154310 后 apachectl graceful。
+
+### [2026-11-11] 评论数据造数：1262 条评论/回复（覆盖全部 24 篇已发布文章）
+- 对象：blog_platform 库 comments/users 表（纯数据变更，无代码改动、无需发版）。
+- 变更内容：
+  - 新增 12 个「真实感」用户（id 100-111：墨尘/林远/算法小白菜/产品老雷/北岸/苏格拉没有底/一片叶子/K神不姓K/远山淡影/阿汤聊AI/豆花君/清风算法，密码统一 Blog@2026 的 BCrypt 哈希，role=user，带 bio）。
+  - 新增评论 1262 条（id 1000-2261，全部 visible/未删除），热门前 6 篇（36/20/37/21/27/22）每篇 13 条一级评论 + 每楼 6-18 条二级回复（每篇 122-161 条回复），其余 18 篇每篇 3-4 条一级评论 + 回复。
+  - 内容质量：按每篇文章主题手工撰写（AI 未来/Agent/职业焦虑/ReAct 工程/Transformer 数学各有专属话语文料），每楼必有互动链（追问→作者答疑、观点交锋→反驳再回应、经验分享），1130 条回复设置了 reply_to_user_id（互相回复），作者本人（星河笔记/陈陟/浩然/白猫）在部分楼层下场回复；同文章内评论文本 0 重复（生成器带唯一化变体）；时间戳分布在近 30 天（一级）并按楼内先后递增。
+- 执行方式：本地 Python 生成器（/tmp/gen_seed.py，种子 20261111 可复现）产出 seed_comments.sql → 服务器先备份（/root/db-backups/blog_platform_pre_seed_comments_20261111_163902.sql.gz）→ mysql 导入。
+- 验证：SQL 校验每篇热门一级=13、每楼回复 6~18、同文重复 0、无超长；线上 API 验证 GET /blogs/36/comments（total=13，replyCount 正确）、GET /comments/1000/replies（replyToUser 正确指向被回复人）、80 端口回归 200。
+- 回滚：DELETE FROM comments WHERE id >= 1000; DELETE FROM users WHERE id >= 100;（或从 pre_seed_comments 备份恢复）。
