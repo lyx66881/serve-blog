@@ -348,3 +348,9 @@ blog-backend/
 - 执行方式：NEXT_PUBLIC_API_BASE_URL=/api/v1 构建 standalone → tar 上传 → 旧版移 /opt/web-blog.bak → 解压 + standalone 平铺 → 重启。
 - 验证：web-blog active；本机 3000/80 均 200；外网 /、/feedback、/admin/feedbacks、/article/36、/messages 均 200。
 - 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
+
+### [2026-11-11] web-blog 前端部署 6a5383a（精选副卡等高拉伸样式调整）
+- 变更：编辑精选副卡恢复等高拉伸，卡内改为标题/元信息纵向分布（纯样式）。
+- 执行方式：同标准流程（构建 → tar → 平铺 → 重启）。
+- 验证：web-blog active；外网 /、/feedback、/article/36、/messages 均 200。
+- 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
