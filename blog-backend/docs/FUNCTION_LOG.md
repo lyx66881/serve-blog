@@ -360,3 +360,9 @@ blog-backend/
 - 执行方式：同标准流程（构建 → tar → 平铺 → 重启）。
 - 验证：web-blog active；外网 /、/feedback、/article/36 均 200。
 - 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
+
+### [2026-11-11] web-blog 前端部署 d95ff8a（精选副卡内容居中分布样式调整）
+- 变更：编辑精选副卡内容居中分布并收紧行隙（纯样式）。
+- 执行方式：同标准流程（构建 → tar → 平铺 → 重启）。
+- 验证：web-blog active；外网 /、/feedback、/article/36 均 200。
+- 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
