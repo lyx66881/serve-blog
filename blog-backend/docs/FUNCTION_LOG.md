@@ -342,3 +342,9 @@ blog-backend/
 - 执行方式：NEXT_PUBLIC_API_BASE_URL=/api/v1 构建 standalone → tar 上传 → 旧版移 /opt/web-blog.bak → 解压 + `cp -a .next/standalone/. /opt/web-blog/` 平铺（上次踩坑后的标准步骤）→ 重启。
 - 验证：web-blog active；本机 3000/80 均 200；外网 /、/feedback、/article/36、/messages、/users/16/social 均 200。
 - 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
+
+### [2026-11-11] web-blog 前端部署 8cc3554（反馈接真实接口 + 管理端处理页）
+- 变更：3619e05 意见反馈接入真实接口 + 我的反馈 + 管理端反馈处理页（/admin/feedbacks）；8cc3554 编辑精选副卡改为自然紧凑高度并均匀分布。
+- 执行方式：NEXT_PUBLIC_API_BASE_URL=/api/v1 构建 standalone → tar 上传 → 旧版移 /opt/web-blog.bak → 解压 + standalone 平铺 → 重启。
+- 验证：web-blog active；本机 3000/80 均 200；外网 /、/feedback、/admin/feedbacks、/article/36、/messages 均 200。
+- 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
