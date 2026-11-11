@@ -37,7 +37,7 @@ public class LocalFileStorageService implements FileStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(LocalFileStorageService.class);
 
-    public static final Set<String> BIZ_TYPES = Set.of("avatar", "cover", "article", "chat");
+    public static final Set<String> BIZ_TYPES = Set.of("avatar", "cover", "article", "chat", "feedback");
 
     /** 允许的图片 MIME 类型 -> 扩展名 */
     private static final Map<String, String> ALLOWED_CONTENT_TYPES = Map.of(

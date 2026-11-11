@@ -325,3 +325,14 @@ blog-backend/
 - 执行方式：NEXT_PUBLIC_API_BASE_URL=/api/v1 构建 standalone → tar 上传 → 旧版移 /opt/web-blog.bak → 解压。过程中踩坑：tar 将 .next/standalone 解为子目录导致 server.js 不在 /opt/web-blog 根，systemd 启动失败（MODULE_NOT_FOUND）；以 `cp -a .next/standalone/. /opt/web-blog/` 平铺修复。后续部署解压后必须执行该平铺步骤。
 - 验证：web-blog active；本机 3000/80/api 200；外网 /、/article/36、/users/16、/messages、/users/16/social 均 200。
 - 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
+
+### [2026-11-11] 新增意见反馈功能（Flyway V12）
+- 对象：新表 feedbacks（user_id、content(可空,≤1000)、image_url/image_width/image_height(可空)、status(pending/processed/ignored)、时间戳）；上传业务类型新增 feedback。
+- 接口（/api/v1）：
+  - POST /feedback（登录）：content 与 imageId 至少其一（皆空 40006）；imageId 须为本人上传且 type=feedback 的图片（不存在 40404、冒用 40300、类型不符 40006）；返回完整 FeedbackResponse。
+  - GET /users/me/feedbacks（登录）：我的反馈分页（page/pageSize 默认 1/10 上限 50，时间倒序，含 status）。
+  - GET /admin/feedbacks?status=&page=&pageSize=（admin）：全站反馈分页，可按 status 筛选，附提交人 user{id,username,nickname,avatar}。
+  - PUT /admin/feedbacks/{id}/status（admin）：body {status: pending|processed|ignored}。
+- 执行方式：mvn package → 备份（/root/db-backups/blog_platform_pre_feedback_*.sql.gz、blog-backend-pre-feedback.jar）→ scp 部署 → Flyway 自动迁移 V12。
+- 验证：E2E 13 项全过（纯文字/纯图片/图文/全空 40006/imageId 不存在 40404/非 feedback 图 40006/冒用图 40300/我的列表/未登录 40100/管理列表/状态流转/非 admin 40300/用户侧状态回显）；回归首页/评论/blogs 200；测试数据（fb_% 用户、反馈、上传记录、/data/blog/uploads/feedback）已清理。
+- 回滚：恢复备份 jar；SQL `DROP TABLE feedbacks;` 并从 flyway_schema_history 删除 V12 记录（或直接恢复整库备份）。
