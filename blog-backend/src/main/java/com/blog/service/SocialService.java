@@ -229,12 +229,13 @@ public class SocialService {
         Set<Long> ids = rows.stream().map(otherIdGetter).collect(Collectors.toSet());
         Map<Long, User> users = ids.isEmpty() ? Collections.emptyMap()
                 : userMapper.selectByIds(ids).stream().collect(Collectors.toMap(User::getId, Function.identity(), (a, b) -> a));
-        Set<Long> followedByViewer = viewerId == null ? Collections.emptySet()
+        // 注意：ids 为空时不能执行 .in(column, 空集合)，MyBatis-Plus 会生成非法 SQL（IN ()）
+        Set<Long> followedByViewer = viewerId == null || ids.isEmpty() ? Collections.emptySet()
                 : followMapper.selectList(new LambdaQueryWrapper<Follow>()
                         .eq(Follow::getFollowerId, viewerId)
                         .in(Follow::getFollowingId, ids))
                         .stream().map(Follow::getFollowingId).collect(Collectors.toSet());
-        Set<Long> followsViewer = viewerId == null ? Collections.emptySet()
+        Set<Long> followsViewer = viewerId == null || ids.isEmpty() ? Collections.emptySet()
                 : followMapper.selectList(new LambdaQueryWrapper<Follow>()
                         .eq(Follow::getFollowingId, viewerId)
                         .in(Follow::getFollowerId, ids))

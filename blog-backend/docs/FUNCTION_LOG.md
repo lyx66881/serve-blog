@@ -271,3 +271,11 @@ blog-backend/
 - 执行方式：本地 mvn package → 备份（DB: /root/db-backups/blog_platform_pre_social_20261111_164831.sql.gz；jar: bak_20261111_164831）→ scp 部署重启，Flyway 自动建表。
 - 验证：E2E 24 项全通过（关注/取关/幂等/自己/粉丝关注列表视角标记/资料页计数/dm-policy 切换与非法值/互关私信/非互关 40303/拉黑双向私信 40302/拉黑后禁关注/拉黑列表/取消拉黑/未登录 40100），测试数据（soc_a/soc_b）已清理；回归 blogs 200、首页 200。
 - 回滚：jar 换回 bak_20261111_164831 重启；DDL 回滚：DROP TABLE follows; DROP TABLE blocks; ALTER TABLE users DROP COLUMN dm_policy;（或从 pre_social 备份恢复）。
+
+### [2026-11-11] 修复：关注/粉丝列表为空且已登录时返回 50000
+- 对象：SocialService.listDirection。
+- 原因：列表为空时 ids 为空集合，但 MyBatis-Plus 的 `.in(column, 空集合)` 会生成非法 SQL（IN ()）→ SQLSyntaxErrorException → 50000。匿名访问跳过了该查询所以未触发（粉丝列表正常、关注列表异常即此差异）。
+- 修复：ids 为空时跳过 followedByViewer/followsViewer 两个查询（直接返回空集合）。全代码库排查其余 4 处 `.in(` 调用点（CommentService x2、BlogService x2）均有空集合保护，无同类隐患。
+- 执行方式：本地 mvn package → scp 部署重启（本次无 DB 变更，无需备份）。
+- 验证：已登录 + 空关注列表（/users/16/following）返回 {items:[],total:0} 200；已登录 + 空粉丝列表、非空列表、匿名场景均正常；回归 blogs/评论 200。测试账号已清理。
+- 回滚：换回上一版 jar 重启即可（fix 前版本为 fix 后 17:08 构建之前的 16:50 构建产物）。
