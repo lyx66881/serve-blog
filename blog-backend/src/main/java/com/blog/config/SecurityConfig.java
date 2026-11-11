@@ -73,6 +73,8 @@ public class SecurityConfig {
                                 "/api/v1/blogs/*/comments",
                                 "/api/v1/comments/*/replies",
                                 "/api/v1/users/*", "/api/v1/users/*/blogs",
+                                "/api/v1/users/*/followers", "/api/v1/users/*/following",
+                                "/api/v1/users/*/follow-stats",
                                 "/api/v1/categories", "/api/v1/categories/*",
                                 "/api/v1/tags").permitAll()
                         // WebSocket 握手（鉴权在 JwtHandshakeInterceptor 用 token 查询参数完成）

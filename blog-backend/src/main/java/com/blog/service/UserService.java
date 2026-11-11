@@ -33,14 +33,16 @@ public class UserService {
     private final FileStorageService fileStorageService;
     private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
+    private final SocialService socialService;
 
     public UserService(UserMapper userMapper, BlogMapper blogMapper, FileStorageService fileStorageService,
-                       PasswordEncoder passwordEncoder, AuthService authService) {
+                       PasswordEncoder passwordEncoder, AuthService authService, SocialService socialService) {
         this.userMapper = userMapper;
         this.blogMapper = blogMapper;
         this.fileStorageService = fileStorageService;
         this.passwordEncoder = passwordEncoder;
         this.authService = authService;
+        this.socialService = socialService;
     }
 
     public UserResponse getCurrentUser() {
@@ -115,9 +117,15 @@ public class UserService {
             wrapper.eq(Blog::getIsPublic, 1);
         }
         long blogCount = blogMapper.selectCount(wrapper);
+        Long viewer = viewerId;
+        Boolean followedByMe = (viewer == null || viewer.equals(userId)) ? null : socialService.isFollowing(viewer, userId);
+        Boolean followsMe = (viewer == null || viewer.equals(userId)) ? null : socialService.isFollowing(userId, viewer);
+        com.blog.dto.social.FollowStatsResponse stats = socialService.followStats(userId);
         return new UserProfileResponse(
                 user.getId(), user.getUsername(), user.getNickname(),
-                user.getAvatar(), user.getBio(), user.getCreatedAt(), blogCount);
+                user.getAvatar(), user.getBio(), user.getCreatedAt(), blogCount,
+                stats.followerCount(), stats.followingCount(),
+                followedByMe, followsMe, user.getDmPolicy());
     }
 
     private User requireUser(Long userId) {
@@ -131,7 +139,7 @@ public class UserService {
     private UserResponse toSelfResponse(User user) {
         return new UserResponse(
                 user.getId(), user.getUsername(), user.getNickname(),
-                user.getEmail(), user.getAvatar(), user.getBio(), user.getRole(), user.getCreatedAt());
+                user.getEmail(), user.getAvatar(), user.getBio(), user.getRole(), user.getDmPolicy(), user.getCreatedAt());
     }
 
     /**

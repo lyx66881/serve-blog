@@ -16,6 +16,7 @@ public record UserResponse(
         String avatar,
         String bio,
         String role,
+        String dmPolicy,
         LocalDateTime createdAt
 ) {
 }

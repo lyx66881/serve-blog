@@ -22,6 +22,7 @@ public enum ErrorCode {
     FILE_TOO_LARGE(40004, 400, "文件大小超出限制"),
     FILE_UPLOAD_FAILED(40005, 400, "文件上传失败"),
     PARAM_INVALID(40006, 400, "请求参数校验失败"),
+    FOLLOW_SELF(40007, 400, "不能关注自己"),
 
     UNAUTHORIZED(40100, 401, "未登录或登录已过期"),
     INVALID_CREDENTIALS(40101, 401, "用户名或密码错误"),
@@ -33,6 +34,8 @@ public enum ErrorCode {
     EMAIL_NOT_BOUND(40107, 400, "当前账号未绑定邮箱，无法接收验证码"),
 
     FORBIDDEN(40300, 403, "无权限执行此操作"),
+    CANNOT_INTERACT(40302, 403, "无法与该用户互动，可能已被拉黑"),
+    DM_POLICY_RESTRICTED(40303, 403, "对方仅允许互关好友私信"),
 
     NOT_FOUND(40400, 404, "资源不存在"),
     USER_NOT_FOUND(40401, 404, "用户不存在"),

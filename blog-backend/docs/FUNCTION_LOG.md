@@ -258,3 +258,16 @@ blog-backend/
 - 执行方式：本地 Python 生成器（/tmp/gen_seed.py，种子 20261111 可复现）产出 seed_comments.sql → 服务器先备份（/root/db-backups/blog_platform_pre_seed_comments_20261111_163902.sql.gz）→ mysql 导入。
 - 验证：SQL 校验每篇热门一级=13、每楼回复 6~18、同文重复 0、无超长；线上 API 验证 GET /blogs/36/comments（total=13，replyCount 正确）、GET /comments/1000/replies（replyToUser 正确指向被回复人）、80 端口回归 200。
 - 回滚：DELETE FROM comments WHERE id >= 1000; DELETE FROM users WHERE id >= 100;（或从 pre_seed_comments 备份恢复）。
+
+### [2026-11-11] 新增关注/粉丝 + 拉黑 + 私信权限功能（V10）
+- 对象：blog-backend 代码 + 数据库（Flyway V10__add_social.sql，自动执行）。
+- 变更内容：
+  - 新表 follows（关注关系，uk(follower_id, following_id)）、blocks（拉黑关系，uk(blocker_id, blocked_id)），均为物理删除（取关/取消拉黑即删行，无逻辑删除）；users 表新增 dm_policy 列（everyone=任何人可私信，默认；mutual_follow=仅互关好友可私信）。
+  - 新增接口（前缀 /api/v1）：POST/DELETE /users/{id}/follow（关注/取关，幂等）、GET /users/{id}/followers、GET /users/{id}/following（公开，带 followedByMe/followsMe 视角标记）、GET /users/{id}/follow-stats（公开）、POST/DELETE /users/{id}/block（拉黑/取消，幂等）、GET /users/me/blocks（我的拉黑列表）、PUT /users/me/dm-policy（私信策略）。
+  - 规则：不能关注/拉黑自己（40007/40006）；被对方拉黑后无法关注对方（40302）；拉黑后双方互发私信均拒绝（40302）；mutual_follow 策略下非互关发私信拒绝（40303）。重复关注/拉黑幂等成功。
+  - GET /users/{id} 主页响应新增 followersCount/followingCount/followedByMe/followsMe/dmPolicy；/users/me、登录返回新增 dmPolicy；SecurityConfig 放行 GET /users/*/followers|following|follow-stats。
+  - 新错误码：40007 不能关注自己、40302 无法与该用户互动（拉黑）、40303 对方仅允许互关好友私信。
+  - 新增代码：SocialController/SocialService/Follow/Block 实体与 Mapper、dto/social/*；ChatService 发私信接入 assertCanDm 校验。
+- 执行方式：本地 mvn package → 备份（DB: /root/db-backups/blog_platform_pre_social_20261111_164831.sql.gz；jar: bak_20261111_164831）→ scp 部署重启，Flyway 自动建表。
+- 验证：E2E 24 项全通过（关注/取关/幂等/自己/粉丝关注列表视角标记/资料页计数/dm-policy 切换与非法值/互关私信/非互关 40303/拉黑双向私信 40302/拉黑后禁关注/拉黑列表/取消拉黑/未登录 40100），测试数据（soc_a/soc_b）已清理；回归 blogs 200、首页 200。
+- 回滚：jar 换回 bak_20261111_164831 重启；DDL 回滚：DROP TABLE follows; DROP TABLE blocks; ALTER TABLE users DROP COLUMN dm_policy;（或从 pre_social 备份恢复）。

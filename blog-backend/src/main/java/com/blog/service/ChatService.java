@@ -45,13 +45,15 @@ public class ChatService {
     private final MessageMapper messageMapper;
     private final UserMapper userMapper;
     private final ChatWebSocketHandler wsHandler;
+    private final SocialService socialService;
 
     public ChatService(ConversationMapper conversationMapper, MessageMapper messageMapper,
-                       UserMapper userMapper, ChatWebSocketHandler wsHandler) {
+                       UserMapper userMapper, ChatWebSocketHandler wsHandler, SocialService socialService) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.userMapper = userMapper;
         this.wsHandler = wsHandler;
+        this.socialService = socialService;
     }
 
     /**
@@ -73,6 +75,7 @@ public class ChatService {
         if (content.length() > MAX_CONTENT_LENGTH) {
             throw new BizException(ErrorCode.PARAM_INVALID, "消息内容最长 2000 字符");
         }
+        socialService.assertCanDm(senderId, toUser.getId(), toUser.getDmPolicy());
 
         Conversation conv = getOrCreateConversation(senderId, req.toUserId());
         LocalDateTime now = LocalDateTime.now();

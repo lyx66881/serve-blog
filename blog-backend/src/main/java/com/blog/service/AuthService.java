@@ -210,7 +210,7 @@ public class AuthService {
         UserResponse userResponse = new UserResponse(
                 user.getId(), user.getUsername(),
                 user.getNickname() == null ? user.getUsername() : user.getNickname(),
-                user.getEmail(), user.getAvatar(), user.getBio(), user.getRole(), user.getCreatedAt());
+                user.getEmail(), user.getAvatar(), user.getBio(), user.getRole(), user.getDmPolicy(), user.getCreatedAt());
         return new TokenResponse(token, "Bearer", tokenProvider.getExpireSeconds(), userResponse);
     }
 
