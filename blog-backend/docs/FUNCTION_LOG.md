@@ -196,3 +196,17 @@ blog-backend/
 ### [2026-11-11] 观察记录：线上部署与本地源码的细微差异（未改动）
 - 线上 jar（/opt/blog-backend/blog-backend-1.0.0.jar）的分页响应字段为 `items`，本地源码 PageResult 为 `list`，说明线上版本与当前源码存在少量漂移；下次发版前需核对。
 - 本地源码 BlogService 创建文章时 content_version 写 "1"，线上存量数据存在 "v1"，属历史数据差异，无功能性影响。
+
+### [2026-11-11] 新增 2 篇 AI 未来展望/Agent 文章，并使「编辑精选前三」「热门前五」全部为 AI 未来展望与 Agent 主题
+- 背景说明：博客前端未部署（服务器 80 端口为 LAMP 默认页，/data/wwwroot/default 无博客前端）。「热门」= GET /api/v1/blogs?sort=hot（view_count 倒序）；「编辑精选」按前端惯例取热门头部。故本项通过数据层达成定位要求。
+- 新增文章：
+  - id=36《当 Agent 成为水电煤：写给 2030 年的软件世界》（AI 未来展望，作者 16，约 2276 字，标签 AI未来/Agent/行业观察，view_count=152000，已发布+封面）；
+  - id=37《当 Agent 开始替你做决定：自主性让渡的边界在哪里》（Agent 深度文，作者 7，约 2306 字，标签 Agent/AI未来/人机共生，view_count=118000，已发布+封面）。
+- 封面：2 张 16:9 AI 生成图（同系列风格，已裁剪水印），存于 /data/blog/uploads/cover/2026/11/，uploaded_files 已补记。
+- 浏览量调整：id=27（Agent 不是套壳）view_count 26001→40000，使热门排序为 36→20→37→21→27（前五全部为 AI 未来展望/Agent 主题；原第 5 名 id=22 为 AI 技术文，移至第 6）。
+- 执行方式：本地撰写内容 → 生成 SQL → scp 上传 → mysql 执行（已先备份）。
+- 验证：ORDER BY view_count DESC 前 6 名核对通过；两篇文章详情 API、封面 URL 可访问。
+- 回滚：从备份恢复，或 DELETE id=36,37 并还原 id=27 的 view_count。
+
+### [2026-11-11] 变更记录约定补充
+- 「编辑精选/热门」定位属于内容运营范畴：后续新增文章若影响热门前五的构成，需在本文件记录并说明是否符合「AI 未来展望与 Agent」定位。
