@@ -236,3 +236,15 @@ blog-backend/
 - 验证：E2E 全链路通过（临时测试用户 cmt_test_a/b，已清理）——发表顶级评论、回复（默认/指定被回复人）、非法 replyToUserId 40006、未登录 40100、草稿文章评论 40402、1001 字 40006、他人删评 40300、管理接口普通用户 40300、admin 列表/隐藏/恢复/hidden 筛选/非法 status 40006、隐藏后公开侧 total/commentCount/replyCount 同步减少、删除顶级评论级联软删回复、删不存在评论 40405；确认既有接口无回归（/api/v1/blogs 结构不变、80 首页 200、Swagger 200）。测试数据（评论、测试用户及其测试草稿博客）已全部清除，comments 表 0 行，admin 仅剩 yz6688。
 - 注意：yz6688 旧密码未知（yz344355.. 登录 40101），如需管理员权限请自行走 /auth/reset-password 或告知新密码；admin 判定基于登录时签发的 JWT（72h），改 role 后需重新登录生效。
 - 回滚：systemctl stop blog-backend && cp /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261111_152450 /opt/blog-backend/blog-backend-1.0.0.jar && systemctl start blog-backend；如需回滚表结构：DROP TABLE comments; ALTER TABLE users DROP COLUMN role;（Flyway 历史需按需清理）。
+
+### [2026-11-11] 新增站内私信功能（REST + WebSocket 实时推送）并部署上线
+- 对象：blog-backend 服务端 + blog_platform 库 + Apache 反代配置 + 线上部署。
+- 变更内容：
+  - 新表（Flyway V9__create_chat_tables.sql）：conversations（双人会话，user_a_id 恒为较小 ID 保证唯一配对，uk_pair 唯一键，last_message/last_message_at/last_sender_id 预览，unread_a/unread_b 双向未读数）+ messages（消息，read_at 判已读，内容 ≤2000 字，逻辑删除）。
+  - 新接口（前缀 /api/v1，均需登录）：GET /conversations（会话列表，按最后消息倒序，含对方用户/最后一条预览/unreadCount）；GET /conversations/{id}/messages（历史消息正序分页，仅双方可见 40406，拉取即置对方消息已读并清零未读）；POST /messages（发私信，body {toUserId, content}，会话不存在自动创建，不能发给自己/不存在用户，2001 字返回 40006）；GET /messages/unread-total（全局未读总数）。
+  - WebSocket 实时推送：端点 /api/v1/ws/chat?token=<JWT>（浏览器 WS 无法带 Authorization 头，改用查询参数，JwtHandshakeInterceptor 握手校验，失败 401）；服务端仅下发不接收消息（发送走 REST 保证可靠），推送格式 {"type":"message","data":{消息 DTO}}，心跳 {"type":"ping"}→{"type":"pong"}；多端登录各自连接均会收到推送。
+  - pom 新增 spring-boot-starter-websocket；错误码新增 40406 会话不存在。
+  - Apache：启用 mod_proxy_wstunnel（原被注释），新增 ProxyPass /api/v1/ws/ ws://127.0.0.1:8080/... upgrade=websocket（置于 /api/v1/ 之前），apachectl graceful。
+- 执行方式：本地编码 → mvn package → 备份（DB: /root/db-backups/blog_platform_pre_chat_20261111_154310.sql.gz；旧 jar: /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261111_154310；httpd.conf: httpd.conf.bak_20261111_154310）→ Apache 配置 wstunnel + graceful → scp 新 jar → systemctl restart blog-backend → Flyway 自动执行 V9。
+- 验证：E2E 全链路通过（临时测试用户 chat_test_a/b，已清理）——发私信自动建会话、B 会话列表未读 1、拉历史自动置已读且 A 视角 read=true、B 回复后 A unread-total 正确；错误链路（发自己 40006/对方不存在 40401/空内容 40006/未登录 40100/超长 40006）；WS 链路：无 token/坏 token 握手 401、直连 8080 与经 Apache 80 均握手 101、B 在线经 WS 实时收到 A 通过 REST 发的消息（{"type":"message"}）与 pong 心跳；修复 totalUnred NPE（select 未带 userAId/userBId）；回归确认 80 首页 200、/api/v1/blogs 200、Swagger 200。测试数据已全部清除（messages/conversations 0 行，测试用户已删）。
+- 回滚：jar/DB 回滚同上条方式（备份 bak_20261111_154310）；表结构回滚：DROP TABLE messages; DROP TABLE conversations;；Apache 回滚：还原 httpd.conf.bak_20261111_154310 后 apachectl graceful。

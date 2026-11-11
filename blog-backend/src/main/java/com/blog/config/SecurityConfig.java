@@ -75,6 +75,8 @@ public class SecurityConfig {
                                 "/api/v1/users/*", "/api/v1/users/*/blogs",
                                 "/api/v1/categories", "/api/v1/categories/*",
                                 "/api/v1/tags").permitAll()
+                        // WebSocket 握手（鉴权在 JwtHandshakeInterceptor 用 token 查询参数完成）
+                        .requestMatchers("/api/v1/ws/**").permitAll()
                         // 管理端：仅 admin 角色
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         // 其余一律需要认证

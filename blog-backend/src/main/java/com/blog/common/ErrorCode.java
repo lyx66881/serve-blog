@@ -40,6 +40,7 @@ public enum ErrorCode {
     CATEGORY_NOT_FOUND(40403, 404, "分类不存在"),
     FILE_NOT_FOUND(40404, 404, "文件不存在"),
     COMMENT_NOT_FOUND(40405, 404, "评论不存在"),
+    CONVERSATION_NOT_FOUND(40406, 404, "会话不存在"),
 
     METHOD_NOT_ALLOWED(40500, 405, "请求方法不支持"),
 
