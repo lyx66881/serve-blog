@@ -319,3 +319,9 @@ blog-backend/
 - 执行方式：mvn package → scp 部署 → 重启。无 DB 变更。
 - 验证：5 场景 E2E（仅 query / 仅 form / 两处同值 / 两处矛盾值 ×2）全部符合预期；回归 blogs/评论/首页 200、无 token 访问私信 401；测试用户与上传文件已清理。
 - 回滚：恢复备份 jar /opt/blog-backend/blog-backend-pre-chatimg.jar 并重启。
+
+### [2026-11-11] web-blog 前端部署 7b08a51（回复即时可见 + 私信发图）
+- 变更：拉取前端最新 2 个提交——7b08a51「回复后立即可见 + 首次回复自动聚焦」（即评论区回复缓存失效修复）+ 368edd1「私信支持发送图片（前端压缩 + 两步上传）+ 已读残留修复」，编辑精选右列改编辑部清单风。
+- 执行方式：NEXT_PUBLIC_API_BASE_URL=/api/v1 构建 standalone → tar 上传 → 旧版移 /opt/web-blog.bak → 解压。过程中踩坑：tar 将 .next/standalone 解为子目录导致 server.js 不在 /opt/web-blog 根，systemd 启动失败（MODULE_NOT_FOUND）；以 `cp -a .next/standalone/. /opt/web-blog/` 平铺修复。后续部署解压后必须执行该平铺步骤。
+- 验证：web-blog active；本机 3000/80/api 200；外网 /、/article/36、/users/16、/messages、/users/16/social 均 200。
+- 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
