@@ -22,7 +22,7 @@ import com.blog.storage.LocalFileStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "文件上传", description = "统一图片上传：头像 / 封面 / 正文图片")
+@Tag(name = "文件上传", description = "统一图片上传：头像 / 封面 / 正文图片 / 聊天图片")
 @RestController
 @RequestMapping("/api/v1/upload")
 public class UploadController {
@@ -33,7 +33,7 @@ public class UploadController {
         this.uploadService = uploadService;
     }
 
-    @Operation(summary = "上传图片", description = "multipart/form-data；type: avatar / cover / article（默认 article）")
+    @Operation(summary = "上传图片", description = "multipart/form-data；type: avatar / cover / article / chat（默认 article）")
     @PostMapping("/image")
     public ApiResponse<UploadResponse> uploadImage(
             @RequestPart("file") MultipartFile file,
@@ -42,7 +42,7 @@ public class UploadController {
             throw new BizException(ErrorCode.PARAM_INVALID, "上传文件不能为空");
         }
         if (!LocalFileStorageService.BIZ_TYPES.contains(type)) {
-            throw new BizException(ErrorCode.PARAM_INVALID, "type 仅支持 avatar / cover / article");
+            throw new BizException(ErrorCode.PARAM_INVALID, "type 仅支持 avatar / cover / article / chat");
         }
         return ApiResponse.ok(uploadService.uploadImage(file, type));
     }

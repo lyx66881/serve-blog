@@ -24,6 +24,14 @@ public class Message {
 
     private String content;
 
+    private String msgType;
+
+    private String imageUrl;
+
+    private Integer imageWidth;
+
+    private Integer imageHeight;
+
     private LocalDateTime readAt;
 
     @TableLogic
@@ -40,6 +48,14 @@ public class Message {
     public void setSenderId(Long senderId) { this.senderId = senderId; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+    public String getMsgType() { return msgType; }
+    public void setMsgType(String msgType) { this.msgType = msgType; }
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public Integer getImageWidth() { return imageWidth; }
+    public void setImageWidth(Integer imageWidth) { this.imageWidth = imageWidth; }
+    public Integer getImageHeight() { return imageHeight; }
+    public void setImageHeight(Integer imageHeight) { this.imageHeight = imageHeight; }
     public LocalDateTime getReadAt() { return readAt; }
     public void setReadAt(LocalDateTime readAt) { this.readAt = readAt; }
     public Integer getDeleted() { return deleted; }

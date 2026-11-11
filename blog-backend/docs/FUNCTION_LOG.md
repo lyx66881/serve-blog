@@ -298,3 +298,16 @@ blog-backend/
 - 执行方式：npm ci → NEXT_PUBLIC_API_BASE_URL=/api/v1 构建 standalone → scp → 旧版移至 /opt/web-blog.bak → 解包启动。
 - 验证：service active；本机 3000/80/API 均 200；外网 /、/article/36、/users/16、/users/16/social、/messages 均 200。WS 实连情况待用户侧回归观察（服务端日志 WS connected 应稳定不抖动）。
 - 回滚：mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
+
+### [2026-11-11] 私信支持图片消息（Flyway V11）
+- 对象：messages 表新增 msg_type（text/image）、image_url、image_width、image_height；上传业务类型新增 chat。
+- 变更：
+  - 迁移 V11__chat_image.sql（messages 加 4 列，存量消息默认 msg_type=text）。
+  - POST /api/v1/messages 请求体扩展：imageId 可选（必为本人上传且 bizType=chat 的文件 ID）、imageWidth/imageHeight 可选、content 变为可选（图片消息作配文，文本消息仍必填）。类型规则：imageId 非空→图片消息（content 可空）；否则文本消息（content 必填 1-2000）。
+  - 会话 last_message 预览：图片消息为「[图片] 配文」。
+  - 上传接口 type 新增 chat（/uploads/chat/{yyyy}/{MM}/ 存放），Swagger 文案同步更正。
+  - MessageResponse/WS 推送均含 msgType/imageUrl/imageWidth/imageHeight，前端与实时推送字段一致。
+- 安全校验：imageId 不存在→40404；非本人上传→40300；非 chat 类型→40006；空消息→40006；DM 权限/拉黑规则不变。
+- 执行方式：mvn package → 备份（/root/db-backups/blog_platform_pre_chatimg_20261111_175703.sql.gz、blog-backend-pre-chatimg.jar）→ scp 部署 → Flyway 自动迁移。
+- 验证：E2E 9 项全过（chat 图上传、发图+配文+宽高、文本回归、4 类异常码、会话预览「[图片] …」、历史含图、WS 推送 203ms 含图片字段）；回归 blogs/评论/首页 200；测试数据（soc_% 用户、消息、会话、上传记录、/data/blog/uploads/chat）已全部清理。
+- 回滚：恢复备份 jar + SQL `ALTER TABLE messages DROP COLUMN msg_type, DROP COLUMN image_url, DROP COLUMN image_width, DROP COLUMN image_height;`。

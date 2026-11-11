@@ -23,16 +23,20 @@ import com.blog.dto.chat.MessageResponse;
 import com.blog.dto.chat.SendMessageRequest;
 import com.blog.entity.Conversation;
 import com.blog.entity.Message;
+import com.blog.entity.UploadedFile;
 import com.blog.entity.User;
 import com.blog.mapper.ConversationMapper;
 import com.blog.mapper.MessageMapper;
+import com.blog.mapper.UploadedFileMapper;
 import com.blog.mapper.UserMapper;
 import com.blog.websocket.ChatWebSocketHandler;
 
 /**
- * 站内私信业务：双人会话（user_a_id 恒为较小 ID）+ 消息。
+ * 站内私信业务：双人会话（user_a_id 恒为较小 ID）+ 消息（支持文本与图片）。
  * <p>
  * 发送走 REST 保证可靠；在线时由 ChatWebSocketHandler 向双方长连接实时推送。
+ * 图片消息：客户端先经 POST /upload/image?bizType=chat 上传拿 imageId，再随消息发送；
+ * 服务端校验上传记录归属与业务类型，消息内存 image_url，content 作为可选配文。
  */
 @Service
 public class ChatService {
@@ -40,24 +44,30 @@ public class ChatService {
     private static final int MAX_PAGE_SIZE = 50;
     private static final int MAX_CONTENT_LENGTH = 2000;
     private static final int PREVIEW_LENGTH = 200;
+    private static final String MSG_TEXT = "text";
+    private static final String MSG_IMAGE = "image";
 
     private final ConversationMapper conversationMapper;
     private final MessageMapper messageMapper;
     private final UserMapper userMapper;
+    private final UploadedFileMapper uploadedFileMapper;
     private final ChatWebSocketHandler wsHandler;
     private final SocialService socialService;
 
     public ChatService(ConversationMapper conversationMapper, MessageMapper messageMapper,
-                       UserMapper userMapper, ChatWebSocketHandler wsHandler, SocialService socialService) {
+                       UserMapper userMapper, UploadedFileMapper uploadedFileMapper,
+                       ChatWebSocketHandler wsHandler, SocialService socialService) {
         this.conversationMapper = conversationMapper;
         this.messageMapper = messageMapper;
         this.userMapper = userMapper;
+        this.uploadedFileMapper = uploadedFileMapper;
         this.wsHandler = wsHandler;
         this.socialService = socialService;
     }
 
     /**
      * 发送私信：对方须为存在用户且不能是自己；会话不存在自动创建；成功后实时推送双方。
+     * imageId 非空时为图片消息（content 作为可选配文），否则为文本消息（content 必填）。
      */
     @Transactional
     public MessageResponse send(Long senderId, SendMessageRequest req) {
@@ -69,12 +79,33 @@ public class ChatService {
             throw new BizException(ErrorCode.USER_NOT_FOUND);
         }
         String content = req.content() == null ? "" : req.content().trim();
-        if (content.isEmpty()) {
-            throw new BizException(ErrorCode.PARAM_INVALID, "消息内容不能为空");
-        }
         if (content.length() > MAX_CONTENT_LENGTH) {
             throw new BizException(ErrorCode.PARAM_INVALID, "消息内容最长 2000 字符");
         }
+
+        String msgType = MSG_TEXT;
+        String imageUrl = null;
+        Integer imageWidth = null;
+        Integer imageHeight = null;
+        if (req.imageId() != null) {
+            UploadedFile file = uploadedFileMapper.selectById(req.imageId());
+            if (file == null) {
+                throw new BizException(ErrorCode.FILE_NOT_FOUND);
+            }
+            if (!file.getUploaderId().equals(senderId)) {
+                throw new BizException(ErrorCode.FORBIDDEN, "只能发送自己上传的图片");
+            }
+            if (!"chat".equals(file.getBizType())) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "仅支持 chat 类型上传的图片");
+            }
+            msgType = MSG_IMAGE;
+            imageUrl = file.getUrl();
+            imageWidth = req.imageWidth();
+            imageHeight = req.imageHeight();
+        } else if (content.isEmpty()) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "消息内容不能为空");
+        }
+
         socialService.assertCanDm(senderId, toUser.getId(), toUser.getDmPolicy());
 
         Conversation conv = getOrCreateConversation(senderId, req.toUserId());
@@ -84,17 +115,24 @@ public class ChatService {
         message.setConversationId(conv.getId());
         message.setSenderId(senderId);
         message.setContent(content);
+        message.setMsgType(msgType);
+        message.setImageUrl(imageUrl);
+        message.setImageWidth(imageWidth);
+        message.setImageHeight(imageHeight);
         message.setCreatedAt(now);
         messageMapper.insert(message);
 
+        String preview = MSG_IMAGE.equals(msgType)
+                ? "[图片]" + (content.isEmpty() ? "" : " " + content)
+                : content;
         boolean senderIsA = conv.getUserAId().equals(senderId);
         conversationMapper.update(null, new LambdaUpdateWrapper<Conversation>()
                 .eq(Conversation::getId, conv.getId())
-                .set(Conversation::getLastMessage, truncate(content, PREVIEW_LENGTH))
+                .set(Conversation::getLastMessage, truncate(preview, PREVIEW_LENGTH))
                 .set(Conversation::getLastMessageAt, now)
                 .set(Conversation::getLastSenderId, senderId)
                 .setSql(senderIsA ? "unread_b = unread_b + 1" : "unread_a = unread_a + 1"));
-        conv.setLastMessage(truncate(content, PREVIEW_LENGTH));
+        conv.setLastMessage(truncate(preview, PREVIEW_LENGTH));
         conv.setLastMessageAt(now);
         conv.setLastSenderId(senderId);
 
@@ -209,8 +247,10 @@ public class ChatService {
 
     private MessageResponse toMessageResponse(Message m) {
         User sender = userMapper.selectById(m.getSenderId());
+        String msgType = m.getMsgType() == null ? "text" : m.getMsgType();
         return new MessageResponse(m.getId(), m.getConversationId(),
                 sender == null ? null : toAuthor(sender), m.getContent(),
+                msgType, m.getImageUrl(), m.getImageWidth(), m.getImageHeight(),
                 m.getReadAt() != null, m.getCreatedAt());
     }
 
