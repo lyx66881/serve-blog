@@ -336,3 +336,9 @@ blog-backend/
 - 执行方式：mvn package → 备份（/root/db-backups/blog_platform_pre_feedback_*.sql.gz、blog-backend-pre-feedback.jar）→ scp 部署 → Flyway 自动迁移 V12。
 - 验证：E2E 13 项全过（纯文字/纯图片/图文/全空 40006/imageId 不存在 40404/非 feedback 图 40006/冒用图 40300/我的列表/未登录 40100/管理列表/状态流转/非 admin 40300/用户侧状态回显）；回归首页/评论/blogs 200；测试数据（fb_% 用户、反馈、上传记录、/data/blog/uploads/feedback）已清理。
 - 回滚：恢复备份 jar；SQL `DROP TABLE feedbacks;` 并从 flyway_schema_history 删除 V12 记录（或直接恢复整库备份）。
+
+### [2026-11-11] web-blog 前端部署 a48eace（意见反馈页面先行版）
+- 变更：新增意见反馈页面（/feedback，对接 V12 反馈接口）+ 编辑精选右列恢复卡片并收紧间距。
+- 执行方式：NEXT_PUBLIC_API_BASE_URL=/api/v1 构建 standalone → tar 上传 → 旧版移 /opt/web-blog.bak → 解压 + `cp -a .next/standalone/. /opt/web-blog/` 平铺（上次踩坑后的标准步骤）→ 重启。
+- 验证：web-blog active；本机 3000/80 均 200；外网 /、/feedback、/article/36、/messages、/users/16/social 均 200。
+- 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
