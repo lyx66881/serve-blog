@@ -206,11 +206,11 @@ public class AuthService {
     }
 
     private TokenResponse buildTokenResponse(User user) {
-        String token = tokenProvider.createToken(user.getId(), user.getUsername());
+        String token = tokenProvider.createToken(user.getId(), user.getUsername(), user.getRole());
         UserResponse userResponse = new UserResponse(
                 user.getId(), user.getUsername(),
                 user.getNickname() == null ? user.getUsername() : user.getNickname(),
-                user.getEmail(), user.getAvatar(), user.getBio(), user.getCreatedAt());
+                user.getEmail(), user.getAvatar(), user.getBio(), user.getRole(), user.getCreatedAt());
         return new TokenResponse(token, "Bearer", tokenProvider.getExpireSeconds(), userResponse);
     }
 

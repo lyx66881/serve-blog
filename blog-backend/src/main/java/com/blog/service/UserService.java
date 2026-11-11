@@ -131,7 +131,7 @@ public class UserService {
     private UserResponse toSelfResponse(User user) {
         return new UserResponse(
                 user.getId(), user.getUsername(), user.getNickname(),
-                user.getEmail(), user.getAvatar(), user.getBio(), user.getCreatedAt());
+                user.getEmail(), user.getAvatar(), user.getBio(), user.getRole(), user.getCreatedAt());
     }
 
     /**

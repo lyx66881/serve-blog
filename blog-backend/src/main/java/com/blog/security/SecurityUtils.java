@@ -40,4 +40,13 @@ public final class SecurityUtils {
         UserPrincipal principal = getPrincipal();
         return principal == null ? null : principal.id();
     }
+
+    /**
+     * 当前登录用户是否为管理员。
+     */
+    public static boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
 }

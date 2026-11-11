@@ -15,6 +15,7 @@ public record UserResponse(
         String email,
         String avatar,
         String bio,
+        String role,
         LocalDateTime createdAt
 ) {
 }

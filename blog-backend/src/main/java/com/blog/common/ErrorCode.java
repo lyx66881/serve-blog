@@ -39,6 +39,7 @@ public enum ErrorCode {
     BLOG_NOT_FOUND(40402, 404, "博客不存在"),
     CATEGORY_NOT_FOUND(40403, 404, "分类不存在"),
     FILE_NOT_FOUND(40404, 404, "文件不存在"),
+    COMMENT_NOT_FOUND(40405, 404, "评论不存在"),
 
     METHOD_NOT_ALLOWED(40500, 405, "请求方法不支持"),
 

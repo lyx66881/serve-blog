@@ -223,3 +223,16 @@ blog-backend/
   - Apache 反代沿用既有配置（httpd.conf 535-540 行），未改动。
 - 验证：80 首页 200（墨迹 Inkwell）；/api/v1/blogs?sort=hot 经 80 返回真实数据（热门第一 id=36）；/uploads 封面 200 image/jpeg；/article/36、/login 路由 200。
 - 回滚：systemctl stop web-blog && rm -rf /opt/web-blog && mv /opt/web-blog.bak-20261111 /opt/web-blog && systemctl start web-blog（旧单元文件 ExecStart=next start，需还原）。
+
+### [2026-11-11] 新增文章评论/回复功能（含管理员审核）并部署上线
+- 对象：blog-backend 服务端 + blog_platform 库 + 线上部署。
+- 变更内容：
+  - 新表 comments（Flyway V8__create_comments.sql）：两层结构（顶级评论 parent_id=NULL，回复统一挂顶级评论下），字段 blog_id/user_id/parent_id/reply_to_user_id/content(≤1000)/status(visible|hidden)/deleted(逻辑删除)/created_at/updated_at，索引 (blog_id,parent_id,status)、(user_id)、(parent_id)。
+  - 新增 users.role 字段（Flyway V7__add_user_role.sql，默认 user）；JWT 增加 role 声明，admin 用户获得 ROLE_ADMIN；线上将 username=yz6688（id=3，站长主账号）设为 admin。
+  - 新接口（前缀 /api/v1）：GET /blogs/{blogId}/comments（公开，顶级评论分页，含 author/replyCount）；GET /comments/{id}/replies（公开，回复平铺分页，正序）；POST /blogs/{blogId}/comments（登录，发表评论/回复，content 1-1000 字，parentId+replyToUserId 校验归属）；DELETE /comments/{id}（登录，评论作者/文章作者/admin，软删，顶级评论连同回复）；GET /admin/comments（admin，全站分页含 blogTitle，可按 status 筛选）；PUT /admin/comments/{id}/status（admin，visible/hidden）。
+  - GET /blogs、GET /blogs/{id} 响应新增 commentCount 字段（可见评论数，含回复），不影响既有字段。
+  - 错误码新增 40405 评论不存在；权限规则：/api/v1/admin/** 需 ROLE_ADMIN。
+- 执行方式：本地编码（V7/V8 迁移、Comment 实体/Mapper/Service/Controller、AdminCommentController、SecurityConfig/JWT/UserResponse/Blog DTO 改造）→ mvn package → 服务器先备份（DB: /root/db-backups/blog_platform_pre_comments_20261111_152450.sql.gz；旧 jar: /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261111_152450）→ scp 新 jar → systemctl restart blog-backend → Flyway 自动执行 V7/V8 → SQL 设置 yz6688 role=admin。
+- 验证：E2E 全链路通过（临时测试用户 cmt_test_a/b，已清理）——发表顶级评论、回复（默认/指定被回复人）、非法 replyToUserId 40006、未登录 40100、草稿文章评论 40402、1001 字 40006、他人删评 40300、管理接口普通用户 40300、admin 列表/隐藏/恢复/hidden 筛选/非法 status 40006、隐藏后公开侧 total/commentCount/replyCount 同步减少、删除顶级评论级联软删回复、删不存在评论 40405；确认既有接口无回归（/api/v1/blogs 结构不变、80 首页 200、Swagger 200）。测试数据（评论、测试用户及其测试草稿博客）已全部清除，comments 表 0 行，admin 仅剩 yz6688。
+- 注意：yz6688 旧密码未知（yz344355.. 登录 40101），如需管理员权限请自行走 /auth/reset-password 或告知新密码；admin 判定基于登录时签发的 JWT（72h），改 role 后需重新登录生效。
+- 回滚：systemctl stop blog-backend && cp /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261111_152450 /opt/blog-backend/blog-backend-1.0.0.jar && systemctl start blog-backend；如需回滚表结构：DROP TABLE comments; ALTER TABLE users DROP COLUMN role;（Flyway 历史需按需清理）。

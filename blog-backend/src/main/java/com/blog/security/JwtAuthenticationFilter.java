@@ -43,8 +43,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UserPrincipal principal = new UserPrincipal(
                         Long.valueOf(claims.getSubject()),
                         claims.get("username", String.class));
+                List<SimpleGrantedAuthority> authorities = "admin".equals(claims.get("role", String.class))
+                        ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"))
+                        : List.of(new SimpleGrantedAuthority("ROLE_USER"));
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                        principal, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (JwtException | IllegalArgumentException e) {
                 // token 无效或已过期：清空上下文，按未认证处理

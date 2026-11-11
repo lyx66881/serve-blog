@@ -50,15 +50,18 @@ public class BlogService {
     private final CategoryMapper categoryMapper;
     private final TagMapper tagMapper;
     private final TagService tagService;
+    private final CommentService commentService;
 
     public BlogService(BlogMapper blogMapper, BlogTagMapper blogTagMapper, UserMapper userMapper,
-                       CategoryMapper categoryMapper, TagMapper tagMapper, TagService tagService) {
+                       CategoryMapper categoryMapper, TagMapper tagMapper, TagService tagService,
+                       CommentService commentService) {
         this.blogMapper = blogMapper;
         this.blogTagMapper = blogTagMapper;
         this.userMapper = userMapper;
         this.categoryMapper = categoryMapper;
         this.tagMapper = tagMapper;
         this.tagService = tagService;
+        this.commentService = commentService;
     }
 
     // ==================== 写操作 ====================
@@ -180,7 +183,8 @@ public class BlogService {
                     .setSql("view_count = view_count + 1"));
             blog.setViewCount(blog.getViewCount() == null ? 1 : blog.getViewCount() + 1);
         }
-        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()));
+        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()),
+                commentService.countByBlog(blogId));
     }
 
     /**
@@ -219,7 +223,8 @@ public class BlogService {
         }
 
         Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
-        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
     }
 
     /**
@@ -238,7 +243,8 @@ public class BlogService {
         wrapper.orderByDesc(Blog::getPublishedAt).orderByDesc(Blog::getCreatedAt);
 
         Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
-        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
     }
 
     /**
@@ -260,7 +266,8 @@ public class BlogService {
         wrapper.orderByDesc(Blog::getUpdatedAt);
 
         Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
-        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
     }
 
     // ==================== 私有方法 ====================
@@ -341,6 +348,10 @@ public class BlogService {
         return new long[]{p, s};
     }
 
+    private List<Long> idsOf(List<Blog> blogs) {
+        return blogs.stream().map(Blog::getId).toList();
+    }
+
     private PageResult<BlogSummaryResponse> emptyPage(long page, long pageSize) {
         return new PageResult<>(List.of(), 0, page, pageSize, 0);
     }
@@ -356,7 +367,7 @@ public class BlogService {
 
     // ==================== 响应组装 ====================
 
-    private BlogSummaryResponse toSummaryResponse(Blog blog, List<Blog> context) {
+    private BlogSummaryResponse toSummaryResponse(Blog blog, List<Blog> context, Map<Long, Long> commentCounts) {
         Map<Long, BlogAuthorResponse> authors = loadAuthors(context);
         Map<Long, String> categoryNames = loadCategoryNames(context);
         Map<Long, List<TagResponse>> tags = loadTags(context.stream().map(Blog::getId).toList());
@@ -373,12 +384,13 @@ public class BlogService {
                 blog.getStatus(),
                 isPublicBlog(blog),
                 blog.getViewCount(),
+                commentCounts == null ? 0L : commentCounts.getOrDefault(blog.getId(), 0L),
                 blog.getPublishedAt(),
                 blog.getCreatedAt(),
                 blog.getUpdatedAt());
     }
 
-    private BlogResponse toDetailResponse(Blog blog, List<TagResponse> tags) {
+    private BlogResponse toDetailResponse(Blog blog, List<TagResponse> tags, Long commentCount) {
         Map<Long, BlogAuthorResponse> authors = loadAuthors(List.of(blog));
         Map<Long, String> categoryNames = loadCategoryNames(List.of(blog));
 
@@ -397,6 +409,7 @@ public class BlogService {
                 blog.getContentHtml(),
                 blog.getContentVersion(),
                 blog.getViewCount(),
+                commentCount == null ? 0L : commentCount,
                 blog.getPublishedAt(),
                 blog.getCreatedAt(),
                 blog.getUpdatedAt());

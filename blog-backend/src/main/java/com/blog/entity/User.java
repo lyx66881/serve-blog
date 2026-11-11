@@ -27,6 +27,9 @@ public class User {
 
     private String bio;
 
+    /** 角色：user-普通用户 admin-管理员 */
+    private String role;
+
     @TableLogic
     private Integer deleted;
 
@@ -50,6 +53,8 @@ public class User {
     public void setAvatar(String avatar) { this.avatar = avatar; }
     public String getBio() { return bio; }
     public void setBio(String bio) { this.bio = bio; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
     public Integer getDeleted() { return deleted; }
     public void setDeleted(Integer deleted) { this.deleted = deleted; }
     public LocalDateTime getCreatedAt() { return createdAt; }

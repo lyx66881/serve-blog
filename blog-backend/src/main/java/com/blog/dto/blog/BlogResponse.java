@@ -26,6 +26,7 @@ public record BlogResponse(
         String contentHtml,
         String contentVersion,
         Long viewCount,
+        Long commentCount,
         LocalDateTime publishedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
