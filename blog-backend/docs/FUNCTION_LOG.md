@@ -366,3 +366,17 @@ blog-backend/
 - 执行方式：同标准流程（构建 → tar → 平铺 → 重启）。
 - 验证：web-blog active；外网 /、/feedback、/article/36 均 200。
 - 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.bak /opt/web-blog && systemctl restart web-blog。
+
+### [2026-11-12] 重造全站文章评论数据（740 条），消除 AI 味、强化真实互动感
+- 背景：此前批量注入的评论被识别出明显模板痕迹（大量以"确实"开头的固定句式、无上下文的泛泛回复），不符合"评论需真实可靠、像真实用户"的要求，全量重做。
+- 对象：comments 表全量替换（导入前备份 /root/db-backups/comments_20261112_115707.sql.gz）。
+- 变更：删除旧评论 740 条，注入新评论 740 条——热门 6 篇（id 36/20/37/21/27/22）每篇 10 条一级评论、每条 6 条二级回复（各 70 条）；其余 16 篇文章每篇 4 顶级 + 16 回复（各 20 条）。
+- 数据质量约束（生成器脚本本地 /tmp/cmt/gen.js + 文案池 pool*.js）：
+  - 全站文本零重复（同文内 + 跨文章均唯一）；短评（如"学到了""码住"）跨文章最多复用 6 次、同文内不重复；
+  - 616 条回复全部有明确互动对象（回复楼主或楼内前文发言者），reply_to_user_id 与 parent 关联一致，无自问自答；
+  - 每篇热门文章 2~3 条楼内回复为文章作者亲自下场答疑（对应正文观点展开），约 35% 一级评论带提问、其余提问由普通用户接力回答；
+  - 评论时间从各文章发布时间起按幂律分布推进，回复始终晚于楼主评论，无未来时间；
+  - 校验器自动拦截："确实"开头 / "仅供参考" / 中英混杂 / 同文重复 / 孤儿引用，PASS 后才允许导出。
+- 执行方式：本地生成 seed.sql → scp 上传 → mysql 导入（临时关闭 FK_CHECKS 完成 DELETE，INSERT 含显式 id 保证 parent 引用一致）。
+- 验证：SQL 层（各文章条数 / 违禁词 0 / 同文重复 0 / 自回复 0 / 孤儿 0）+ API 层（GET /blogs/20/comments 返回昵称、replyCount=6；GET /comments/{id}/replies 返回 replyToUser）+ 首页与 API 200。
+- 回滚：gunzip < /root/db-backups/comments_20261112_115707.sql.gz | mysql 恢复旧表。
