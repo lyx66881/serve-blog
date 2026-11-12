@@ -400,3 +400,14 @@ blog-backend/
 - 验证：admin token 实测 stats/blogs 分页/详情/状态切换(恢复原状)/users 分页/封禁切换(恢复原状)/分类增改删/tags/feedbacks/自我保护(40006) 全部通过；外网 / 200、/api/v1/* 200、/admin/ 200、/admin/login 回退 200、admin 静态资源 200；浏览器实测登录页正常渲染、无控制台错误。
 - 回滚：后端 mv /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261112_admin 回原 jar 并重启；httpd.conf 从 .bak_20261112_admin 恢复并 graceful；rm -rf /opt/admin-web；主站 rm -rf /opt/web-blog && mv /opt/web-blog.preadmin /opt/web-blog && systemctl restart web-blog。
 - 备注：管理后台地址 http://106.15.170.114/admin/ ，使用管理员账号（yz6688）登录；角色/封禁变更即时生效，无需等 token 过期。
+
+### [2026-11-12] 新增关注消息提示（站内通知）功能
+- 对象：服务端新增「站内通知」模块；关注动作触发新关注通知。
+- 变更：
+  - 迁移 V14__create_notifications.sql：notifications 表（user_id 接收人 / type 类型 follow-新关注（预留 like/comment/system）/ actor_id 触发者 / is_read 0-未读 1-已读），索引 (user_id,is_read,id)；
+  - 新增接口（均需登录）：GET /notifications（分页，onlyUnread 可选）、GET /notifications/unread-count（未读数角标）、PUT /notifications/{id}/read、PUT /notifications/read-all；
+  - SocialService.follow 成功插入后调 NotificationService.onFollow 产生通知；同一人对同一人存在未读关注通知时不重复生成（防反复取关/关注刷通知）；并发重复关注（DuplicateKeyException）不产生通知；
+  - 实时推送（可选）：通知落库后经 ChatWebSocketHandler.pushToUser 向接收人在线连接推送 {"type":"notify","event":"follow","unreadCount":N}；离线静默，上线后拉取；前端不处理该消息不影响轮询方案。
+- 执行方式：本地 mvn package → scp → 备份旧 jar（blog-backend-1.0.0.jar.bak_20261112_notify）→ 重启；Flyway 自动应用 V14。
+- 验证：deploytest(1) 关注 mochen_dev(100) → 100 的未读数 0→1、列表含关注人昵称/头像、read-all 后未读数 0、单条已读链路正常；已取消关注并清理测试通知（表恢复 0 行）。
+- 回滚：mv /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261112_notify 回原 jar 重启；如需删表 DROP TABLE notifications（Flyway 历史需同步处理）。

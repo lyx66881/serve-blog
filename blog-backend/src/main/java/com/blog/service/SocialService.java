@@ -30,6 +30,7 @@ import com.blog.entity.User;
 import com.blog.mapper.BlockMapper;
 import com.blog.mapper.FollowMapper;
 import com.blog.mapper.UserMapper;
+import com.blog.service.NotificationService;
 
 /**
  * 关注/粉丝 + 拉黑 + 私信策略业务。
@@ -49,11 +50,14 @@ public class SocialService {
     private final FollowMapper followMapper;
     private final BlockMapper blockMapper;
     private final UserMapper userMapper;
+    private final NotificationService notificationService;
 
-    public SocialService(FollowMapper followMapper, BlockMapper blockMapper, UserMapper userMapper) {
+    public SocialService(FollowMapper followMapper, BlockMapper blockMapper, UserMapper userMapper,
+                         NotificationService notificationService) {
         this.followMapper = followMapper;
         this.blockMapper = blockMapper;
         this.userMapper = userMapper;
+        this.notificationService = notificationService;
     }
 
     // ==================== 关注 ====================
@@ -74,10 +78,15 @@ public class SocialService {
         follow.setFollowerId(followerId);
         follow.setFollowingId(targetId);
         follow.setCreatedAt(LocalDateTime.now());
+        boolean inserted = true;
         try {
             followMapper.insert(follow);
         } catch (DuplicateKeyException e) {
             // 并发重复关注，视为已关注
+            inserted = false;
+        }
+        if (inserted) {
+            notificationService.onFollow(followerId, targetId);
         }
         return new FollowStateResponse(true);
     }
