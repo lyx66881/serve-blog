@@ -126,6 +126,7 @@ const menus = [
   { path: '/dashboard', title: '数据看板', icon: 'Odometer' },
   { path: '/blogs', title: '博客管理', icon: 'Document' },
   { path: '/users', title: '用户管理', icon: 'User' },
+  { path: '/chats', title: '聊天记录', icon: 'ChatLineRound' },
   { path: '/categories', title: '分类管理', icon: 'FolderOpened' },
   { path: '/tags', title: '标签管理', icon: 'CollectionTag' },
   { path: '/feedbacks', title: '意见反馈', icon: 'ChatDotRound' }

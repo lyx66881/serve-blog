@@ -18,6 +18,7 @@ const router = createRouter({
         { path: 'dashboard', name: 'dashboard', component: () => import('../views/Dashboard.vue'), meta: { title: '数据看板', icon: 'Odometer' } },
         { path: 'blogs', name: 'blogs', component: () => import('../views/Blogs.vue'), meta: { title: '博客管理', icon: 'Document' } },
         { path: 'users', name: 'users', component: () => import('../views/Users.vue'), meta: { title: '用户管理', icon: 'User' } },
+        { path: 'chats', name: 'chats', component: () => import('../views/Chats.vue'), meta: { title: '聊天记录', icon: 'ChatLineRound' } },
         { path: 'categories', name: 'categories', component: () => import('../views/Categories.vue'), meta: { title: '分类管理', icon: 'FolderOpened' } },
         { path: 'tags', name: 'tags', component: () => import('../views/Tags.vue'), meta: { title: '标签管理', icon: 'CollectionTag' } },
         { path: 'feedbacks', name: 'feedbacks', component: () => import('../views/Feedbacks.vue'), meta: { title: '意见反馈', icon: 'ChatDotRound' } }

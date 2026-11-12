@@ -116,3 +116,26 @@ export interface LoginResult {
   expiresIn: number
   user: CurrentUser
 }
+
+/** 管理端：用户会话（只读查看聊天记录） */
+export interface AdminConversationItem {
+  id: number
+  other?: BlogAuthor
+  lastMessage?: { senderId?: number; content?: string; at?: string }
+  unreadCount?: number
+  updatedAt?: string
+}
+
+/** 管理端：会话消息（只读查看聊天记录） */
+export interface AdminMessageItem {
+  id: number
+  conversationId: number
+  sender?: BlogAuthor
+  content?: string
+  msgType?: 'text' | 'image'
+  imageUrl?: string
+  imageWidth?: number
+  imageHeight?: number
+  isRead?: boolean
+  createdAt?: string
+}
