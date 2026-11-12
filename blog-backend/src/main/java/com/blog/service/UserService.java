@@ -131,14 +131,14 @@ public class UserService {
     private UserResponse toSelfResponse(User user) {
         return new UserResponse(
                 user.getId(), user.getUsername(), user.getNickname(),
-                user.getEmail(), user.getAvatar(), user.getBio(), user.getCreatedAt());
+                user.getEmail(), user.getAvatar(), user.getBio(), user.getRole(), user.getCreatedAt());
     }
 
     /**
      * 供 BlogService 使用的公开作者信息映射。
      */
     public UserPrincipal authorOf(User user) {
-        return new UserPrincipal(user.getId(), user.getUsername());
+        return new UserPrincipal(user.getId(), user.getUsername(), user.getRole());
     }
 
     public User getUserEntity(Long userId) {

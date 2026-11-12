@@ -21,6 +21,18 @@ public class User {
 
     private String password;
 
+    /** 角色：user-普通用户 admin-管理员 */
+    public static final String ROLE_USER = "user";
+    public static final String ROLE_ADMIN = "admin";
+
+    private String role;
+
+    /** 状态：0-正常 1-已封禁 */
+    public static final int STATUS_NORMAL = 0;
+    public static final int STATUS_BANNED = 1;
+
+    private Integer status;
+
     private String nickname;
 
     private String avatar;
@@ -44,6 +56,10 @@ public class User {
     public void setEmail(String email) { this.email = email; }
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+    public Integer getStatus() { return status; }
+    public void setStatus(Integer status) { this.status = status; }
     public String getNickname() { return nickname; }
     public void setNickname(String nickname) { this.nickname = nickname; }
     public String getAvatar() { return avatar; }

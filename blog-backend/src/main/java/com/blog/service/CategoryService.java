@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.blog.common.BizException;
 import com.blog.common.ErrorCode;
+import com.blog.dto.admin.AdminCategoryUpdateRequest;
 import com.blog.dto.category.CategoryCreateRequest;
 import com.blog.dto.category.CategoryResponse;
 import com.blog.entity.Category;
@@ -51,5 +52,46 @@ public class CategoryService {
             throw new BizException(ErrorCode.CONFLICT, "分类名已存在");
         }
         return new CategoryResponse(category.getId(), category.getName(), category.getDescription());
+    }
+
+    // ==================== 管理端操作（/api/v1/admin/**，仅管理员） ====================
+
+    /**
+     * 管理端更新分类（名称唯一）。
+     */
+    @Transactional
+    public CategoryResponse adminUpdate(Long id, AdminCategoryUpdateRequest req) {
+        Category category = requireCategory(id);
+        String name = req.name().trim();
+        Category sameName = categoryMapper.selectOne(new LambdaQueryWrapper<Category>()
+                .eq(Category::getName, name).last("LIMIT 1"));
+        if (sameName != null && !sameName.getId().equals(id)) {
+            throw new BizException(ErrorCode.CONFLICT, "分类名已存在");
+        }
+        category.setName(name);
+        category.setDescription(req.description());
+        try {
+            categoryMapper.updateById(category);
+        } catch (DuplicateKeyException e) {
+            throw new BizException(ErrorCode.CONFLICT, "分类名已存在");
+        }
+        return new CategoryResponse(category.getId(), category.getName(), category.getDescription());
+    }
+
+    /**
+     * 管理端删除分类（逻辑删除；已引用该分类的博客列表将不再显示分类名）。
+     */
+    @Transactional
+    public void adminDelete(Long id) {
+        requireCategory(id);
+        categoryMapper.deleteById(id);
+    }
+
+    private Category requireCategory(Long id) {
+        Category category = categoryMapper.selectById(id);
+        if (category == null) {
+            throw new BizException(ErrorCode.CATEGORY_NOT_FOUND);
+        }
+        return category;
     }
 }

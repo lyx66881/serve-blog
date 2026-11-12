@@ -15,6 +15,7 @@ public class AppProperties {
     private Cors cors = new Cors();
     private Mail mail = new Mail();
     private EmailCode emailCode = new EmailCode();
+    private Admin admin = new Admin();
 
     public Jwt getJwt() { return jwt; }
     public void setJwt(Jwt jwt) { this.jwt = jwt; }
@@ -26,6 +27,8 @@ public class AppProperties {
     public void setMail(Mail mail) { this.mail = mail; }
     public EmailCode getEmailCode() { return emailCode; }
     public void setEmailCode(EmailCode emailCode) { this.emailCode = emailCode; }
+    public Admin getAdmin() { return admin; }
+    public void setAdmin(Admin admin) { this.admin = admin; }
 
     public static class Jwt {
         private String secret;
@@ -88,5 +91,21 @@ public class AppProperties {
         public void setResendIntervalSeconds(int resendIntervalSeconds) { this.resendIntervalSeconds = resendIntervalSeconds; }
         public int getMaxAttempts() { return maxAttempts; }
         public void setMaxAttempts(int maxAttempts) { this.maxAttempts = maxAttempts; }
+    }
+
+    public static class Admin {
+        /** 初始管理员用户名（存在则提升为 admin，不存在则创建） */
+        private String username = "admin";
+        /** 初始管理员密码（仅创建时使用；生产务必通过环境变量覆盖） */
+        private String password = "admin123456";
+        /** 管理员昵称 */
+        private String nickname = "管理员";
+
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+        public String getNickname() { return nickname; }
+        public void setNickname(String nickname) { this.nickname = nickname; }
     }
 }

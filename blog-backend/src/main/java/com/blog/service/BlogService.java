@@ -155,6 +155,7 @@ public class BlogService {
     public void delete(Long operatorId, Long blogId) {
         requireOwnedBlog(operatorId, blogId);
         blogMapper.deleteById(blogId);
+        cleanTagRelations(blogId);
     }
 
     // ==================== 读操作 ====================
@@ -263,7 +264,99 @@ public class BlogService {
         return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
     }
 
+    // ==================== 管理端操作（/api/v1/admin/**，仅管理员） ====================
+
+    /**
+     * 管理端博客列表：全部作者、全部状态；keyword 匹配标题或作者用户名/昵称。
+     */
+    public PageResult<BlogSummaryResponse> adminList(Long page, Long pageSize, String keyword,
+                                                     String status, Long categoryId, Long authorId) {
+        long[] paging = clampPaging(page, pageSize);
+
+        LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>()
+                .select(Blog.class, f -> !LIST_EXCLUDED_COLUMNS.contains(f.getColumn()));
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim();
+            List<Long> matchedAuthorIds = userMapper.selectList(new LambdaQueryWrapper<User>()
+                            .like(User::getUsername, kw).or().like(User::getNickname, kw))
+                    .stream().map(User::getId).toList();
+            wrapper.and(w -> {
+                w.like(Blog::getTitle, kw);
+                if (!matchedAuthorIds.isEmpty()) {
+                    w.or().in(Blog::getAuthorId, matchedAuthorIds);
+                }
+            });
+        }
+        if (status != null && !status.isBlank()) {
+            if (!isKnownStatus(status)) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "status 仅支持 draft / published / offline");
+            }
+            wrapper.eq(Blog::getStatus, status);
+        }
+        if (categoryId != null) {
+            wrapper.eq(Blog::getCategoryId, categoryId);
+        }
+        if (authorId != null) {
+            wrapper.eq(Blog::getAuthorId, authorId);
+        }
+        wrapper.orderByDesc(Blog::getCreatedAt);
+
+        Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
+    }
+
+    /**
+     * 管理端博客详情：不校验作者与公开性，不增加浏览量。
+     */
+    public BlogResponse adminDetail(Long blogId) {
+        Blog blog = blogMapper.selectById(blogId);
+        if (blog == null) {
+            throw new BizException(ErrorCode.BLOG_NOT_FOUND);
+        }
+        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()));
+    }
+
+    /**
+     * 管理端修改博客状态（上架 / 下架 / 转草稿）。
+     */
+    @Transactional
+    public BlogResponse adminUpdateStatus(Long blogId, String status) {
+        if (!isKnownStatus(status)) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "status 仅支持 draft / published / offline");
+        }
+        Blog blog = blogMapper.selectById(blogId);
+        if (blog == null) {
+            throw new BizException(ErrorCode.BLOG_NOT_FOUND);
+        }
+        blog.setStatus(status);
+        if (Blog.STATUS_PUBLISHED.equals(status) && blog.getPublishedAt() == null) {
+            blog.setPublishedAt(LocalDateTime.now());
+        }
+        blogMapper.updateById(blog);
+        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()));
+    }
+
+    /**
+     * 管理端删除博客（逻辑删除）。
+     */
+    @Transactional
+    public void adminDelete(Long blogId) {
+        Blog blog = blogMapper.selectById(blogId);
+        if (blog == null) {
+            throw new BizException(ErrorCode.BLOG_NOT_FOUND);
+        }
+        blogMapper.deleteById(blogId);
+        cleanTagRelations(blogId);
+    }
+
     // ==================== 私有方法 ====================
+
+    /**
+     * 清理博客-标签关联（博客逻辑删除后关联无意义，且会影响管理端标签计数）。
+     */
+    private void cleanTagRelations(Long blogId) {
+        blogTagMapper.delete(new LambdaQueryWrapper<BlogTag>().eq(BlogTag::getBlogId, blogId));
+    }
 
     private String requireValidTitle(String title) {
         if (title == null || title.isBlank()) {

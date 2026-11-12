@@ -70,7 +70,7 @@ Authorization: Bearer <accessToken>
 - 退出登录后原 token 立即失效（服务端黑名单，重启后黑名单清空）。
 - 收到 `code=40100/40102/40103` 时前端应清除本地 token 并跳转登录页。
 
-**公开接口（无需登录）**：注册、登录、邮箱验证码（scene=register/reset）、重置密码、公开博客列表/详情、用户主页及用户已发布博客、分类列表/详情、标签列表、上传文件静态资源、Swagger。
+**公开接口（无需登录）**：注册、登录、邮箱验证码（scene=register/reset）、重置密码、公开博客列表/详情、用户主页及用户已发布博客、分类列表/详情、标签列表、意见反馈提交、上传文件静态资源、Swagger。
 
 ### 1.5 分页结构
 
@@ -160,10 +160,14 @@ Authorization: Bearer <accessToken>
   "user": {
     "id": 1, "username": "alice", "nickname": "Alice",
     "email": "alice@test.com", "avatar": null, "bio": null,
+    "role": "user",
     "createdAt": "2026-11-06T14:49:46"
   }
 }
 ```
+
+> `role`：`user`-普通用户 / `admin`-管理员。管理员调用 `/api/v1/admin/**` 系列接口。
+> 登录响应新增 `role` 字段（增量变更，不影响老前端）。
 
 ### 2.4 退出登录 `POST /api/v1/auth/logout`（需登录）
 
@@ -474,7 +478,114 @@ Authorization: Bearer <accessToken>
 
 ---
 
-## 7. 联调备忘
+## 7. 意见反馈接口
+
+### 7.1 提交意见反馈 `POST /api/v1/feedback`（公开）
+
+登录用户自动关联账号（匿名用户可留 `contact` 联系方式）。请求体：
+
+```json
+{ "contact": "alice@test.com", "content": "希望增加夜间模式" }
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| contact | string | 否 | 联系方式（邮箱/QQ 等，≤100） |
+| content | string | 是 | 反馈内容（1-1000 字符） |
+
+响应 `data`：创建后的反馈项（同 8.5 列表项结构）。错误：`40006` 校验失败。
+
+> 管理端查看与处理见第 8 节。匿名恶意提交暂无限流，生产部署建议在网关层加频率限制。
+
+---
+
+## 8. 管理端接口（仅管理员）
+
+> 所有接口要求登录且 `role=admin`（JWT 中含管理员角色），非管理员访问返回 `40300`。
+> 初始管理员账号由服务端启动时按 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 环境变量自动创建（默认 `admin` / `admin123456`，生产必须覆盖）。
+
+### 8.1 数据看板 `GET /api/v1/admin/stats`
+
+响应 `data`：
+
+```json
+{
+  "totalUsers": 100, "totalBlogs": 300,
+  "publishedBlogs": 200, "draftBlogs": 50, "offlineBlogs": 50,
+  "totalViews": 12000, "totalCategories": 10, "totalTags": 40,
+  "totalFeedbacks": 20, "pendingFeedbacks": 5,
+  "trend": [ { "date": "2026-11-01", "blogsPublished": 3, "newUsers": 2 } ]
+}
+```
+
+`trend` 为近 14 天（含今天）的每日发布博客数与新注册用户数，缺失日期补 0。
+
+### 8.2 博客管理
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/v1/admin/blogs?page&pageSize&keyword&status&categoryId&authorId` | 全站博客列表（含草稿/下架）。keyword 匹配标题或作者用户名/昵称；status=`draft/published/offline` |
+| `GET /api/v1/admin/blogs/{id}` | 任意博客详情（不增加浏览量），结构同 4.4 `BlogResponse` |
+| `PUT /api/v1/admin/blogs/{id}/status` | 修改状态，body：`{ "status": "published" }`（published=上架 / offline=下架 / draft=转草稿） |
+| `DELETE /api/v1/admin/blogs/{id}` | 逻辑删除任意博客 |
+
+列表项结构同 4.2 `BlogSummaryResponse`（含作者、分类、标签）。错误：`40006`、`40402`。
+
+### 8.3 用户管理
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/v1/admin/users?page&pageSize&keyword&role&status` | 用户列表。keyword 匹配用户名/昵称/邮箱；role=`user/admin`；status=`0/1` |
+| `GET /api/v1/admin/users/{id}` | 用户详情 |
+| `PUT /api/v1/admin/users/{id}/status` | 封禁/解封，body：`{ "status": 1 }`（0-正常 1-封禁；封禁后无法登录；**不能操作自己**） |
+| `PUT /api/v1/admin/users/{id}/role` | 角色调整，body：`{ "role": "admin" }`（**不能操作自己**） |
+| `PUT /api/v1/admin/users/{id}/password` | 重置密码，body：`{ "newPassword": "123456" }`（6-32 位） |
+
+列表/详情项结构：
+
+```json
+{ "id": 2, "username": "alice", "nickname": "Alice", "email": "alice@test.com",
+  "avatar": null, "role": "user", "status": 0, "blogCount": 12, "createdAt": "..." }
+```
+
+错误：`40300` 操作自己 / 非管理员、`40401` 用户不存在。
+
+> 封禁说明：已签发的 token 在过期前仍然有效（无状态 JWT 的固有限制），封禁立即阻止新登录；如需即时踢出，重启服务（黑名单/权限重启后按 DB 校验）或后续接入 Redis 缓存校验。
+
+### 8.4 分类 / 标签管理
+
+| 接口 | 说明 |
+| --- | --- |
+| `POST /api/v1/admin/categories` | 创建分类，body 同 6.3 |
+| `PUT /api/v1/admin/categories/{id}` | 更新分类，body：`{ "name": "...", "description": "..." }` |
+| `DELETE /api/v1/admin/categories/{id}` | 删除分类（逻辑删除；引用它的博客将不再显示分类名） |
+| `GET /api/v1/admin/tags` | 标签列表（含 `blogCount` 关联博客数） |
+| `PUT /api/v1/admin/tags/{id}` | 重命名标签，body：`{ "name": "..." }`（≤30 字符，唯一） |
+| `DELETE /api/v1/admin/tags/{id}` | 删除标签（同时移除所有博客-标签关联） |
+
+错误：`40900` 名称已存在、`40403` 分类不存在、`40400` 标签不存在。
+
+### 8.5 意见反馈管理
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /api/v1/admin/feedbacks?page&pageSize&status` | 反馈列表（status=`pending/processed`），按提交时间倒序 |
+| `PUT /api/v1/admin/feedbacks/{id}/status` | 标记处理状态，body：`{ "status": "processed" }` |
+| `DELETE /api/v1/admin/feedbacks/{id}` | 删除反馈（逻辑删除） |
+
+反馈项结构：
+
+```json
+{ "id": 1, "userId": 2, "username": "alice", "nickname": "Alice", "avatar": null,
+  "contact": "alice@test.com", "content": "希望增加夜间模式",
+  "status": "pending", "createdAt": "2026-11-12T10:00:00" }
+```
+
+> `userId` 为空表示匿名反馈（`username`/`nickname`/`avatar` 不输出）。
+
+---
+
+## 9. 联调备忘
 
 1. 前端所有写接口请求体为 JSON（上传除外），勿用表单编码。
 2. `content` 收发均为 JSON 对象；TipTap 编辑器 `editor.getJSON()` / `editor.commands.setContent()` 直接对接。

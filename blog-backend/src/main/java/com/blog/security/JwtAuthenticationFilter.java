@@ -1,6 +1,7 @@
 package com.blog.security;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -40,11 +41,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (token != null && !blacklist.contains(token)) {
             try {
                 Claims claims = tokenProvider.parseToken(token);
+                String role = claims.get("role", String.class);
+                List<SimpleGrantedAuthority> authorities = new ArrayList<>(List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                if ("admin".equals(role)) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                }
                 UserPrincipal principal = new UserPrincipal(
                         Long.valueOf(claims.getSubject()),
-                        claims.get("username", String.class));
+                        claims.get("username", String.class),
+                        role);
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                        principal, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (JwtException | IllegalArgumentException e) {
                 // token 无效或已过期：清空上下文，按未认证处理

@@ -74,6 +74,12 @@ app:
     resend-interval-seconds: 60
     # 验证失败次数上限，达到后验证码作废
     max-attempts: 5
+  admin:
+    # 初始管理员账号：启动时不存在则创建，已存在则提升为管理员角色
+    username: ${ADMIN_USERNAME:admin}
+    # 生产环境务必通过环境变量覆盖初始密码
+    password: ${ADMIN_PASSWORD:admin123456}
+    nickname: ${ADMIN_NICKNAME:管理员}
 
 springdoc:
   swagger-ui:

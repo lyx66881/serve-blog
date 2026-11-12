@@ -32,11 +32,12 @@ public class JwtTokenProvider {
         return expireMillis / 1000;
     }
 
-    public String createToken(Long userId, String username) {
+    public String createToken(Long userId, String username, String role) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
+                .claim("role", role == null ? "user" : role)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expireMillis))
                 .signWith(key)

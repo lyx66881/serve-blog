@@ -40,4 +40,21 @@ public final class SecurityUtils {
         UserPrincipal principal = getPrincipal();
         return principal == null ? null : principal.id();
     }
+
+    /**
+     * 当前用户是否为管理员。
+     */
+    public static boolean isAdmin() {
+        UserPrincipal principal = getPrincipal();
+        return principal != null && principal.isAdmin();
+    }
+
+    /**
+     * 要求当前登录用户为管理员，否则抛出 FORBIDDEN。
+     */
+    public static void requireAdmin() {
+        if (!isAdmin()) {
+            throw new BizException(ErrorCode.FORBIDDEN, "需要管理员权限");
+        }
+    }
 }

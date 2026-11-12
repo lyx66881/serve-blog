@@ -19,6 +19,7 @@ users 1 ──── n blogs 1 ──── n blog_tags n ──── 1 tags
                 │
                 └── n ──── 1 categories (可空)
 users 1 ──── n uploaded_files
+users 1 ──── n feedbacks (可空：匿名反馈无关联)
 ```
 
 ## 2. 表结构
@@ -31,6 +32,8 @@ users 1 ──── n uploaded_files
 | username | VARCHAR(50) | UNIQUE, NOT NULL | 用户名 |
 | email | VARCHAR(100) | UNIQUE, NULL | 邮箱（可空，唯一索引允许多个 NULL） |
 | password | VARCHAR(100) | NOT NULL | BCrypt 加密密码 |
+| role | VARCHAR(20) | NOT NULL DEFAULT 'user' | 角色：user-普通用户 / admin-管理员（V7） |
+| status | TINYINT | NOT NULL DEFAULT 0 | 状态：0-正常 / 1-已封禁，封禁后无法登录（V7） |
 | nickname | VARCHAR(50) | NULL | 昵称 |
 | avatar | VARCHAR(500) | NULL | 头像 URL |
 | bio | VARCHAR(500) | NULL | 个人简介 |

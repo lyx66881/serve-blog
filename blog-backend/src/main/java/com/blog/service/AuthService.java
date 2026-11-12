@@ -127,6 +127,8 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(req.password()));
         user.setNickname(req.nickname() == null || req.nickname().isBlank() ? req.username() : req.nickname());
         user.setEmail(email);
+        user.setRole(User.ROLE_USER);
+        user.setStatus(User.STATUS_NORMAL);
         userMapper.insert(user);
 
         return buildTokenResponse(user);
@@ -139,6 +141,9 @@ public class AuthService {
                 .last("LIMIT 1"));
         if (user == null || !passwordEncoder.matches(req.password(), user.getPassword())) {
             throw new BizException(ErrorCode.INVALID_CREDENTIALS);
+        }
+        if (user.getStatus() != null && user.getStatus() == User.STATUS_BANNED) {
+            throw new BizException(ErrorCode.FORBIDDEN, "账号已被封禁，请联系管理员");
         }
         return buildTokenResponse(user);
     }
@@ -206,11 +211,11 @@ public class AuthService {
     }
 
     private TokenResponse buildTokenResponse(User user) {
-        String token = tokenProvider.createToken(user.getId(), user.getUsername());
+        String token = tokenProvider.createToken(user.getId(), user.getUsername(), user.getRole());
         UserResponse userResponse = new UserResponse(
                 user.getId(), user.getUsername(),
                 user.getNickname() == null ? user.getUsername() : user.getNickname(),
-                user.getEmail(), user.getAvatar(), user.getBio(), user.getCreatedAt());
+                user.getEmail(), user.getAvatar(), user.getBio(), user.getRole(), user.getCreatedAt());
         return new TokenResponse(token, "Bearer", tokenProvider.getExpireSeconds(), userResponse);
     }
 

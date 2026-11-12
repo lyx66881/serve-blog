@@ -1,8 +1,10 @@
 # 博客平台
 
-前后端分离博客平台。
+前后端分离博客平台 + 管理后台。
 
 - `blog-backend/` — Java 后端（Spring Boot 3.x + MyBatis-Plus + MySQL 8 + Flyway + JWT）
+- `web-blog/` — 博客前端（规划中）
+- `admin-web/` — 管理后台前端（Vue 3 + Element Plus + ECharts）
 - `docs/API_CONTRACT.md` — 前后端接口契约（**接口变更必须同步更新**）
 - `docs/DATABASE.md` — 数据库设计文档
 
