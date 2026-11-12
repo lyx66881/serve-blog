@@ -431,3 +431,10 @@ blog-backend/
 - 执行方式：三仓库拉取最新 → 本地构建（mvn package / npm build --base=/admin/ / NEXT_PUBLIC_API_BASE_URL=/api/v1 npm run build）→ scp（md5 校验一致）→ 服务器替换：旧 jar 备份 blog-backend-1.0.0.jar.bak_20261112_full、旧后台保留 /opt/admin-web.pre、旧主站保留 /opt/web-blog.pre2 → 重启两服务。
 - 验证：两服务 active；api/search/web3000/web80/admin80 全 200；搜索接口返回 yz6688 命中 6 篇；外网 /admin/ 资源指纹 index-BZlq8sbZ.js 确认为新版本。
 - 回滚：jar 用 .bak_20261112_full；rm -rf /opt/admin-web && mv /opt/admin-web.pre /opt/admin-web；rm -rf /opt/web-blog && mv /opt/web-blog.pre2 /opt/web-blog 并重启对应服务。
+
+### [2026-11-12] 新增管理端聊天记录查看（只读）+ 后台「聊天记录」页面
+- 对象：服务端新增 GET /api/v1/admin/chats/users/{userId}/conversations（用户会话列表）与 GET /api/v1/admin/chats/conversations/{id}/messages（会话消息记录）；admin-web 新增「聊天记录」页面（路由 /chats，墨与瓷设计，三栏：用户→会话→消息气泡，支持图片消息缩略图、查看更早消息）。
+- 变更：管理端只读查看，不校验会话成员身份、不标记已读、不改未读数；无代回复能力（按需求移除）；无数据库迁移。
+- 执行方式：本地构建 → scp（md5 一致）→ 旧 jar 备份 blog-backend-1.0.0.jar.bak_20261112_chatadmin、旧后台保留 /opt/admin-web.pre2 → 重启 blog-backend。
+- 验证：两服务 active；api/admin/web 全 200；接口实测（临时密码 yz6688 登录后调用）：user16 会话 total=1（含对方/未读/最后消息）、会话 3 消息 total=5（含图片消息）；验证后原密码哈希已逐字节恢复并确认临时密码失效（40101）。
+- 回滚：jar 用 .bak_20261112_chatadmin；rm -rf /opt/admin-web && mv /opt/admin-web.pre2 /opt/admin-web。

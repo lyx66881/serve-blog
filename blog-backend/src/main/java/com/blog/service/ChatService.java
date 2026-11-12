@@ -208,6 +208,34 @@ public class ChatService {
         return convs.stream().mapToLong(c -> c.getUserAId().equals(userId) ? c.getUnreadA() : c.getUnreadB()).sum();
     }
 
+    // ==================== 管理端：聊天记录查看（只读） ====================
+
+    /**
+     * 管理端：指定用户的会话列表（复用用户侧逻辑，只读，不改变未读状态）。
+     */
+    public PageResult<ConversationResponse> adminListConversations(Long userId, Long page, Long pageSize) {
+        return listConversations(page, pageSize, userId);
+    }
+
+    /**
+     * 管理端：会话消息记录（只读、按时间正序；不校验会话成员身份、不标记已读、不改动未读数）。
+     */
+    public PageResult<MessageResponse> adminListMessages(Long conversationId, Long page, Long pageSize) {
+        if (conversationMapper.selectById(conversationId) == null) {
+            throw new BizException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
+        long p = page == null ? 1 : Math.max(1, page);
+        long s = pageSize == null ? 20 : Math.min(Math.max(1, pageSize), MAX_PAGE_SIZE);
+        Page<Message> result = messageMapper.selectPage(Page.of(p, s),
+                new LambdaQueryWrapper<Message>()
+                        .eq(Message::getConversationId, conversationId)
+                        .orderByDesc(Message::getId));
+        List<Message> ordered = result.getRecords().stream()
+                .sorted(java.util.Comparator.comparing(Message::getId)).toList();
+        return new PageResult<>(ordered.stream().map(this::toMessageResponse).toList(),
+                result.getTotal(), p, s, result.getPages());
+    }
+
     // ==================== 私有方法 ====================
 
     private Conversation getOrCreateConversation(Long user1, Long user2) {
