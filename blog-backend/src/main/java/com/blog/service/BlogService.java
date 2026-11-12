@@ -327,7 +327,17 @@ public class BlogService {
         LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>()
                 .select(Blog.class, f -> !LIST_EXCLUDED_COLUMNS.contains(f.getColumn()));
         if (keyword != null && !keyword.isBlank()) {
-            wrapper.like(Blog::getTitle, keyword.trim());
+            String kw = keyword.trim();
+            List<Long> authorIds = userMapper.selectList(new LambdaQueryWrapper<User>()
+                    .select(User::getId)
+                    .like(User::getUsername, kw).or().like(User::getNickname, kw))
+                    .stream().map(User::getId).toList();
+            wrapper.and(w -> {
+                w.like(Blog::getTitle, kw);
+                if (!authorIds.isEmpty()) {
+                    w.or().in(Blog::getAuthorId, authorIds);
+                }
+            });
         }
         if (status != null && !status.isBlank()) {
             if (!isKnownStatus(status)) {

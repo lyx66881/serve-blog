@@ -438,3 +438,10 @@ blog-backend/
 - 执行方式：本地构建 → scp（md5 一致）→ 旧 jar 备份 blog-backend-1.0.0.jar.bak_20261112_chatadmin、旧后台保留 /opt/admin-web.pre2 → 重启 blog-backend。
 - 验证：两服务 active；api/admin/web 全 200；接口实测（临时密码 yz6688 登录后调用）：user16 会话 total=1（含对方/未读/最后消息）、会话 3 消息 total=5（含图片消息）；验证后原密码哈希已逐字节恢复并确认临时密码失效（40101）。
 - 回滚：jar 用 .bak_20261112_chatadmin；rm -rf /opt/admin-web && mv /opt/admin-web.pre2 /opt/admin-web。
+
+### [2026-11-12] 修复后台博客管理搜索不匹配作者名的问题 + 三端全量重新发布
+- 对象：BlogService.adminPage（GET /api/v1/admin/blogs 的 keyword 过滤）。
+- 变更：keyword 由「仅匹配标题」改为「标题 OR 作者（username/nickname）」联合匹配——与后台搜索框 placeholder「搜索标题 / 作者」语义对齐；作者命中时该作者全部（含草稿/下架）文章进入结果；authorId 精确筛选逻辑不变。admin-web / web-blog 本次无代码改动。
+- 执行方式：三仓库拉取最新（后端修复提交、admin-web@28aaedc、web-blog@e60b6f3）→ 本地构建 → scp（md5 三包一致）→ 服务器替换（旧 jar 备份 .bak_20261112_blogsearch，旧后台 web.pre3 保留）→ 重启。
+- 验证：两服务 active、api/web80/admin80 全 200；临时密码实测 admin/blogs 搜索：keyword=yz6688 → 7 篇（含草稿，全部 yz6688）、keyword=yz6699 → 5 篇、keyword=Dart → 标题命中 1 篇、不存在词 → 0；验证后原密码哈希已恢复确认（LEFT 前 16 位一致）。
+- 回滚：jar 用 .bak_20261112_blogsearch；rm -rf /opt/admin-web && mv /opt/admin-web.pre3 /opt/admin-web；rm -rf /opt/web-blog && mv /opt/web-blog.pre3 /opt/web-blog 并重启对应服务。
