@@ -27,6 +27,16 @@ export function apiLogout() {
   return request<void>({ method: 'post', url: '/auth/logout' })
 }
 
+/** 发送邮箱验证码（scene=change 需登录，邮箱须与当前账号绑定邮箱一致；未配置 SMTP 时返回 devCode） */
+export function apiSendEmailCode(email: string, scene: 'change') {
+  return request<{ email: string; devCode?: string }>({ method: 'post', url: '/auth/email-code', data: { email, scene } })
+}
+
+/** 修改自己的密码（校验原密码 + 绑定邮箱验证码） */
+export function apiChangeMyPassword(data: { oldPassword: string; newPassword: string; emailCode: string }) {
+  return request<void>({ method: 'put', url: '/users/me/password', data })
+}
+
 // ==================== 数据看板 ====================
 
 export function apiGetStats() {

@@ -9,7 +9,9 @@ html, body, #app {
   padding: 0;
 }
 body {
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
-  background-color: #f5f7fa;
+  font-family: var(--font-body);
+  background-color: var(--porcelain);
+  color: var(--ink-900);
+  -webkit-font-smoothing: antialiased;
 }
 </style>

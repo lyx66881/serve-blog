@@ -1,47 +1,64 @@
 <template>
-  <el-card shadow="never">
-    <div class="toolbar">
-      <span class="hint">标签由作者写文章时自动创建；重命名后所有引用处同步生效</span>
+  <div class="page-enter">
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">标签管理</h2>
+        <p class="page-desc">标签由作者写文章时自动创建；重命名后所有引用处同步生效</p>
+      </div>
     </div>
 
-    <el-table v-loading="loading" :data="items" stripe>
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column label="标签名" min-width="160">
-        <template #default="{ row }">
-          <el-tag>{{ row.name }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="blogCount" label="关联博客数" width="120" />
-      <el-table-column label="操作" width="160" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" type="primary" plain @click="openRename(row)">重命名</el-button>
-          <el-button size="small" type="danger" plain @click="onDelete(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-  </el-card>
+    <div class="panel">
+      <el-table v-loading="loading" :data="items">
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column label="标签名" min-width="160">
+          <template #default="{ row }">
+            <el-tag effect="plain" round>{{ row.name }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="关联博客数" width="140">
+          <template #default="{ row }">
+            <el-link v-if="row.blogCount" type="primary" :underline="false" @click="goBlogs(row)">{{ row.blogCount }} 篇</el-link>
+            <span v-else class="muted">0 篇</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openRename(row)">重命名</el-button>
+            <el-button link type="danger" @click="onDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
-  <el-dialog v-model="renameVisible" title="重命名标签" width="420px">
-    <el-input v-model="newName" maxlength="30" placeholder="≤30 字符，全局唯一" />
-    <template #footer>
-      <el-button @click="renameVisible = false">取消</el-button>
-      <el-button type="primary" :loading="renaming" @click="onRename">保存</el-button>
-    </template>
-  </el-dialog>
+    <el-dialog v-model="renameVisible" title="重命名标签" width="420px">
+      <el-input v-model="newName" maxlength="30" placeholder="≤30 字符，全局唯一" />
+      <template #footer>
+        <el-button @click="renameVisible = false">取消</el-button>
+        <el-button type="primary" :loading="renaming" @click="onRename">保存</el-button>
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { apiAdminTags, apiAdminTagRename, apiAdminTagDelete } from '../api/admin'
 import type { AdminTagItem } from '../types/api'
 
+const router = useRouter()
 const loading = ref(false)
 const items = ref<AdminTagItem[]>([])
 const renameVisible = ref(false)
 const renameTarget = ref<AdminTagItem | null>(null)
 const newName = ref('')
 const renaming = ref(false)
+
+/** 按标签关键词查看博客（复用博客搜索） */
+function goBlogs(row: AdminTagItem) {
+  router.push({ path: '/blogs', query: { keyword: row.name } })
+}
 
 async function load() {
   loading.value = true
@@ -99,10 +116,3 @@ async function onDelete(row: AdminTagItem) {
 
 onMounted(load)
 </script>
-
-<style scoped>
-.hint {
-  font-size: 12px;
-  color: #999;
-}
-</style>

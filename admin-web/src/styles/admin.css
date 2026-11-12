@@ -1,0 +1,222 @@
+/**
+ * 「墨与瓷」设计系统 —— 博客后台管理
+ *
+ * 瓷白为底，墨色为骨，靛青为印。
+ * 所有页面遵循统一骨架：页头(.page-header) → 工具栏(.toolbar) → 内容面板(.panel) → 分页(.pagination-row)
+ */
+
+:root {
+  /* 墨 */
+  --ink-950: #12151f;
+  --ink-900: #1b2032;
+  --ink-800: #262c40;
+  --ink-700: #3a415a;
+  --ink-500: #6b7280;
+  --ink-400: #9aa1b2;
+  --ink-200: #d9dce5;
+  --ink-100: #eceef3;
+  --ink-50: #f7f8fa;
+
+  /* 瓷 */
+  --porcelain: #f4f5f7;
+  --card: #ffffff;
+
+  /* 印（主色 · 靛青） */
+  --primary: #3b5bdb;
+  --primary-deep: #2f4bb8;
+  --primary-soft: #ebeffc;
+  --primary-line: #c6d2f5;
+
+  /* 功能色 */
+  --success: #0e9f6e;
+  --warning: #d97706;
+  --danger: #d6455d;
+
+  /* 字体 */
+  --font-display: 'Songti SC', 'Noto Serif SC', 'STSong', 'SimSun', Georgia, 'Times New Roman', serif;
+  --font-body: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+
+  /* 立体感 */
+  --shadow-card: 0 1px 2px rgba(27, 32, 50, 0.04), 0 8px 24px rgba(27, 32, 50, 0.05);
+  --shadow-pop: 0 4px 16px rgba(27, 32, 50, 0.1);
+  --radius: 10px;
+}
+
+/* ==================== Element Plus 主题覆盖 ==================== */
+
+:root {
+  --el-color-primary: var(--primary);
+  --el-color-primary-light-3: #6e86e5;
+  --el-color-primary-light-5: #9badef;
+  --el-color-primary-light-7: var(--primary-line);
+  --el-color-primary-light-8: #d8e0f9;
+  --el-color-primary-light-9: var(--primary-soft);
+  --el-color-primary-dark-2: var(--primary-deep);
+  --el-color-success: var(--success);
+  --el-color-warning: var(--warning);
+  --el-color-danger: var(--danger);
+  --el-color-error: var(--danger);
+  --el-border-radius-base: 8px;
+  --el-text-color-primary: var(--ink-900);
+  --el-text-color-regular: var(--ink-700);
+  --el-text-color-secondary: var(--ink-500);
+  --el-border-color: var(--ink-200);
+  --el-border-color-light: var(--ink-100);
+  --el-bg-color-page: var(--porcelain);
+  --el-box-shadow-light: var(--shadow-card);
+  --el-font-family: var(--font-body);
+}
+
+/* 卡片统一质感 */
+.el-card {
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* 对话框 / 抽屉更轻盈 */
+.el-dialog {
+  border-radius: 12px;
+}
+.el-drawer {
+  --el-drawer-padding-primary: 24px;
+}
+
+/* 表格：表头瓷灰、行距舒展 */
+.el-table {
+  --el-table-header-bg-color: var(--ink-50);
+  --el-table-header-text-color: var(--ink-500);
+  --el-table-row-hover-bg-color: var(--primary-soft);
+  --el-table-border-color: var(--ink-100);
+}
+.el-table th.el-table__cell {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.el-table .el-table__cell {
+  padding: 10px 0;
+}
+
+/* 分页 */
+.el-pagination {
+  --el-pagination-button-disabled-bg-color: transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 弹窗确认按钮风格统一（危险操作保持红色主按钮） */
+.el-message-box {
+  border-radius: 12px;
+}
+
+/* ==================== 页面通用骨架 ==================== */
+
+/* 页头：衬线标题 + 描述 + 右侧主操作 */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.page-header .page-title {
+  position: relative;
+  margin: 0;
+  padding-left: 16px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--ink-900);
+  line-height: 1.3;
+}
+.page-header .page-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--primary), var(--primary-deep));
+}
+.page-header .page-desc {
+  margin: 4px 0 0 20px;
+  font-size: 13px;
+  color: var(--ink-500);
+}
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 内容面板 */
+.panel {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+}
+
+/* 工具栏：筛选区，与表格以细线分隔 */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 14px;
+  margin-bottom: 2px;
+  border-bottom: 1px dashed var(--ink-100);
+}
+.toolbar .toolbar-hint {
+  font-size: 12px;
+  color: var(--ink-400);
+  margin-left: 2px;
+}
+
+/* 分页行 */
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* 次要文字 / 表格副标题 */
+.muted {
+  color: var(--ink-400);
+  font-size: 12px;
+}
+
+/* 作者筛选提示条 */
+.filter-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-line);
+  color: var(--primary-deep);
+  font-size: 13px;
+}
+.filter-banner .el-button {
+  margin-left: auto;
+}
+
+/* ==================== 动效 ==================== */
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: page-enter 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}

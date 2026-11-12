@@ -1,39 +1,52 @@
 <template>
-  <el-card shadow="never">
-    <div class="toolbar">
-      <el-button type="primary" @click="openCreate">新建分类</el-button>
-      <span class="hint">分类用于博客归类，删除后引用它的博客将不再显示分类名</span>
+  <div class="page-enter">
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">分类管理</h2>
+        <p class="page-desc">分类用于博客归类，删除后引用它的博客将不再显示分类名</p>
+      </div>
+      <div class="page-actions">
+        <el-button type="primary" @click="openCreate">
+          <el-icon style="margin-right: 4px"><Plus /></el-icon>新建分类
+        </el-button>
+      </div>
     </div>
 
-    <el-table v-loading="loading" :data="items" stripe>
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="name" label="分类名" min-width="160" />
-      <el-table-column prop="description" label="描述" min-width="280" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.description || '-' }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="160" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" type="danger" plain @click="onDelete(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
-  </el-card>
+    <div class="panel">
+      <el-table v-loading="loading" :data="items">
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="name" label="分类名" min-width="160">
+          <template #default="{ row }">
+            <span class="cell-strong">{{ row.name }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" label="描述" min-width="280" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.description || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" @click="onDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
 
-  <el-dialog v-model="dialogVisible" :title="editing ? '编辑分类' : '新建分类'" width="460px">
-    <el-form label-width="80px">
-      <el-form-item label="分类名" required>
-        <el-input v-model="form.name" maxlength="50" placeholder="唯一，≤50 字符" />
-      </el-form-item>
-      <el-form-item label="描述">
-        <el-input v-model="form.description" type="textarea" :rows="3" maxlength="200" placeholder="可选，≤200 字符" />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="onSave">保存</el-button>
-    </template>
-  </el-dialog>
+    <el-dialog v-model="dialogVisible" :title="editing ? '编辑分类' : '新建分类'" width="460px">
+      <el-form label-width="80px">
+        <el-form-item label="分类名" required>
+          <el-input v-model="form.name" maxlength="50" placeholder="唯一，≤50 字符" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="form.description" type="textarea" :rows="3" maxlength="200" placeholder="可选，≤200 字符" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="onSave">保存</el-button>
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -116,14 +129,8 @@ onMounted(load)
 </script>
 
 <style scoped>
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.hint {
-  font-size: 12px;
-  color: #999;
+.cell-strong {
+  font-weight: 500;
+  color: var(--ink-900);
 }
 </style>

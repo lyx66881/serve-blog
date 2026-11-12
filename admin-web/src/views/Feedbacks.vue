@@ -1,74 +1,83 @@
 <template>
-  <el-card shadow="never">
-    <div class="toolbar">
-      <el-radio-group v-model="query.status" @change="onSearch">
-        <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button value="pending">待处理</el-radio-button>
-        <el-radio-button value="processed">已处理</el-radio-button>
-      </el-radio-group>
+  <div class="page-enter">
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">意见反馈</h2>
+        <p class="page-desc">用户提交的建议与问题 · 及时跟进处理</p>
+      </div>
     </div>
 
-    <el-table v-loading="loading" :data="items" stripe>
-      <el-table-column prop="id" label="ID" width="70" />
-      <el-table-column label="提交用户" width="170" show-overflow-tooltip>
-        <template #default="{ row }">
-          <div class="user-cell">
-            <el-avatar :size="28" :src="absoluteUrl(row.avatar)">
-              {{ (row.nickname || row.username || '匿').slice(0, 1).toUpperCase() }}
-            </el-avatar>
-            <div>
-              <div>{{ row.nickname || row.username || '匿名用户' }}</div>
-              <div v-if="row.username" class="sub">@{{ row.username }}</div>
-            </div>
-          </div>
-        </template>
-      </el-table-column>
-      <el-table-column label="联系方式" width="170" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.contact || '-' }}</template>
-      </el-table-column>
-      <el-table-column label="反馈内容" min-width="260">
-        <template #default="{ row }">
-          <el-tooltip :content="row.content" placement="top" :show-after="300">
-            <span class="content-text">{{ row.content }}</span>
-          </el-tooltip>
-        </template>
-      </el-table-column>
-      <el-table-column label="状态" width="90">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'pending' ? 'warning' : 'success'">
-            {{ row.status === 'pending' ? '待处理' : '已处理' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="提交时间" width="165">
-        <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
-        <template #default="{ row }">
-          <el-button
-            size="small"
-            :type="row.status === 'pending' ? 'success' : 'info'"
-            plain
-            @click="onToggleStatus(row)"
-          >
-            {{ row.status === 'pending' ? '标记已处理' : '标记待处理' }}
-          </el-button>
-          <el-button size="small" type="danger" plain @click="onDelete(row)">删除</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="panel">
+      <div class="toolbar">
+        <el-radio-group v-model="query.status" @change="onSearch">
+          <el-radio-button value="">全部</el-radio-button>
+          <el-radio-button value="pending">待处理</el-radio-button>
+          <el-radio-button value="processed">已处理</el-radio-button>
+        </el-radio-group>
+        <span class="toolbar-hint">共 {{ total }} 条</span>
+      </div>
 
-    <el-pagination
-      v-model:current-page="query.page"
-      v-model:page-size="query.pageSize"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      layout="total, sizes, prev, pager, next"
-      class="pagination"
-      @size-change="load"
-      @current-change="load"
-    />
-  </el-card>
+      <el-table v-loading="loading" :data="items">
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column label="提交用户" width="170" show-overflow-tooltip>
+          <template #default="{ row }">
+            <div class="user-cell">
+              <el-avatar :size="30" :src="absoluteUrl(row.avatar)">
+                {{ (row.nickname || row.username || '匿').slice(0, 1).toUpperCase() }}
+              </el-avatar>
+              <div>
+                <div class="user-name">{{ row.nickname || row.username || '匿名用户' }}</div>
+                <div v-if="row.username" class="sub">@{{ row.username }}</div>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="联系方式" width="170" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.contact || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="反馈内容" min-width="260">
+          <template #default="{ row }">
+            <el-tooltip :content="row.content" placement="top" :show-after="300">
+              <span class="content-text">{{ row.content }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="96">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'pending' ? 'warning' : 'success'" effect="light" round>
+              {{ row.status === 'pending' ? '待处理' : '已处理' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="提交时间" width="160">
+          <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="170" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              link
+              :type="row.status === 'pending' ? 'success' : 'info'"
+              @click="onToggleStatus(row)"
+            >
+              {{ row.status === 'pending' ? '标记已处理' : '标记待处理' }}
+            </el-button>
+            <el-button link type="danger" @click="onDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-pagination
+        v-model:current-page="query.page"
+        v-model:page-size="query.pageSize"
+        :total="total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        class="pagination-row"
+        @size-change="load"
+        @current-change="load"
+      />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -139,17 +148,18 @@ onMounted(load)
 </script>
 
 <style scoped>
-.toolbar {
-  margin-bottom: 14px;
-}
 .user-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+.user-name {
+  font-weight: 500;
+  color: var(--ink-900);
 }
 .sub {
   font-size: 12px;
-  color: #999;
+  color: var(--ink-400);
 }
 .content-text {
   display: inline-block;
@@ -157,9 +167,6 @@ onMounted(load)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.pagination {
-  margin-top: 14px;
-  justify-content: flex-end;
+  color: var(--ink-700);
 }
 </style>
