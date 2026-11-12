@@ -425,3 +425,9 @@ blog-backend/
 - 执行方式：本地构建 → scp → 备份旧 jar（blog-backend-1.0.0.jar.bak_20261112_search）→ 重启；无数据库迁移。
 - 验证：keyword=Dart 命中 1 篇；keyword=yz6688 命中其全部 6 篇且 matchedAuthors 返回 yz6688；不存在词返回 total=0/authors=[]；空词 40006。
 - 回滚：mv /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261112_search 回原 jar 重启即可。
+
+### [2026-11-12] 三端全量重新拉取打包发布（服务端/主站/管理后台）
+- 对象：blog-backend（trae/agent-UcjUQu@6aac6c9）、web-blog（main@e5b81ae「首页搜索对接 /blogs/search + 截断省略号贴底」）、admin-web（serve-blog main@ef566c2「后台 UI 统一「墨与瓷」设计语言，新增管理员修改密码与用户-博客联动」）。
+- 执行方式：三仓库拉取最新 → 本地构建（mvn package / npm build --base=/admin/ / NEXT_PUBLIC_API_BASE_URL=/api/v1 npm run build）→ scp（md5 校验一致）→ 服务器替换：旧 jar 备份 blog-backend-1.0.0.jar.bak_20261112_full、旧后台保留 /opt/admin-web.pre、旧主站保留 /opt/web-blog.pre2 → 重启两服务。
+- 验证：两服务 active；api/search/web3000/web80/admin80 全 200；搜索接口返回 yz6688 命中 6 篇；外网 /admin/ 资源指纹 index-BZlq8sbZ.js 确认为新版本。
+- 回滚：jar 用 .bak_20261112_full；rm -rf /opt/admin-web && mv /opt/admin-web.pre /opt/admin-web；rm -rf /opt/web-blog && mv /opt/web-blog.pre2 /opt/web-blog 并重启对应服务。
