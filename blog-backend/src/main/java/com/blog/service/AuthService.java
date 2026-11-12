@@ -140,6 +140,9 @@ public class AuthService {
         if (user == null || !passwordEncoder.matches(req.password(), user.getPassword())) {
             throw new BizException(ErrorCode.INVALID_CREDENTIALS);
         }
+        if (Integer.valueOf(1).equals(user.getStatus())) {
+            throw new BizException(ErrorCode.FORBIDDEN, "账号已被封禁，如有疑问请联系管理员");
+        }
         return buildTokenResponse(user);
     }
 

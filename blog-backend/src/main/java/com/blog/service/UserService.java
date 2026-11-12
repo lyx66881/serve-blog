@@ -1,6 +1,8 @@
 package com.blog.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -8,9 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blog.common.BizException;
 import com.blog.common.ErrorCode;
+import com.blog.common.PageResult;
+import com.blog.dto.admin.AdminUserResponse;
 import com.blog.dto.user.ChangePasswordRequest;
 import com.blog.dto.user.UpdateProfileRequest;
 import com.blog.dto.user.UserProfileResponse;
@@ -155,5 +161,101 @@ public class UserService {
 
     public LocalDateTime now() {
         return LocalDateTime.now();
+    }
+
+    // ==================== 管理端 ====================
+
+    private static final int MAX_ADMIN_PAGE_SIZE = 50;
+
+    /**
+     * 管理端：全站用户分页，支持用户名 / 昵称 / 邮箱关键字，附每人博客数。
+     */
+    public PageResult<AdminUserResponse> adminPage(String keyword, Long page, Long pageSize) {
+        long p = page == null ? 1 : Math.max(1, page);
+        long s = pageSize == null ? 10 : Math.min(Math.max(1, pageSize), MAX_ADMIN_PAGE_SIZE);
+
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim();
+            wrapper.and(w -> w.like(User::getUsername, kw)
+                    .or().like(User::getNickname, kw)
+                    .or().like(User::getEmail, kw));
+        }
+        wrapper.orderByAsc(User::getId);
+
+        Page<User> result = userMapper.selectPage(new Page<>(p, s), wrapper);
+        Map<Long, Long> blogCounts = countBlogsByAuthor(result.getRecords());
+        return PageResult.of(result, user -> toAdminResponse(user, blogCounts));
+    }
+
+    /**
+     * 管理端：封禁 / 解封用户（0-正常 1-封禁）；封禁后该用户无法登录、已有 token 立即失效。
+     */
+    public AdminUserResponse adminSetStatus(Long userId, Integer status) {
+        if (status == null || (status != 0 && status != 1)) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "status 仅支持 0-正常 / 1-封禁");
+        }
+        if (SecurityUtils.currentUserId().equals(userId)) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "不能封禁或解封自己");
+        }
+        User user = requireUser(userId);
+        userMapper.update(null, new LambdaUpdateWrapper<User>().eq(User::getId, userId)
+                .set(User::getStatus, status));
+        user.setStatus(status);
+        return toAdminResponse(user, countBlogsByAuthor(List.of(user)));
+    }
+
+    /**
+     * 管理端：调整用户角色（user-普通用户 / admin-管理员）；降权即时生效。
+     */
+    public AdminUserResponse adminSetRole(Long userId, String role) {
+        if (!"user".equals(role) && !"admin".equals(role)) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "role 仅支持 user / admin");
+        }
+        if (SecurityUtils.currentUserId().equals(userId)) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "不能调整自己的角色");
+        }
+        User user = requireUser(userId);
+        userMapper.update(null, new LambdaUpdateWrapper<User>().eq(User::getId, userId)
+                .set(User::getRole, role));
+        user.setRole(role);
+        return toAdminResponse(user, countBlogsByAuthor(List.of(user)));
+    }
+
+    /**
+     * 管理端：重置用户密码（BCrypt 加密存储）。
+     */
+    public void adminResetPassword(Long userId, String newPassword) {
+        User user = requireUser(userId);
+        userMapper.update(null, new LambdaUpdateWrapper<User>().eq(User::getId, user.getId())
+                .set(User::getPassword, passwordEncoder.encode(newPassword)));
+    }
+
+    private AdminUserResponse toAdminResponse(User user, Map<Long, Long> blogCounts) {
+        return new AdminUserResponse(
+                user.getId(), user.getUsername(), user.getNickname(), user.getEmail(), user.getAvatar(),
+                user.getRole(), user.getStatus() == null ? 0 : user.getStatus(),
+                blogCounts.getOrDefault(user.getId(), 0L), user.getCreatedAt());
+    }
+
+    /** 统计一批作者的博客数（不含已删除博客）。 */
+    private Map<Long, Long> countBlogsByAuthor(List<User> users) {
+        if (users.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = users.stream().map(User::getId).toList();
+        QueryWrapper<Blog> qw = new QueryWrapper<Blog>()
+                .select("author_id AS authorId", "COUNT(*) AS cnt")
+                .in("author_id", ids)
+                .groupBy("author_id");
+        Map<Long, Long> counts = new java.util.HashMap<>();
+        for (Map<String, Object> row : blogMapper.selectMaps(qw)) {
+            Object aid = row.get("authorId");
+            Object cnt = row.get("cnt");
+            if (aid != null && cnt != null) {
+                counts.put(Long.valueOf(aid.toString()), Long.valueOf(cnt.toString()));
+            }
+        }
+        return counts;
     }
 }

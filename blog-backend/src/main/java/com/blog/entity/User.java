@@ -30,6 +30,9 @@ public class User {
     /** 角色：user-普通用户 admin-管理员 */
     private String role;
 
+    /** 状态：0-正常 1-已封禁（封禁后无法登录） */
+    private Integer status;
+
     /** 私信策略：everyone-任何人可私信；mutual_follow-仅互关好友可私信 */
     private String dmPolicy;
 
@@ -58,6 +61,8 @@ public class User {
     public void setBio(String bio) { this.bio = bio; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public Integer getStatus() { return status; }
+    public void setStatus(Integer status) { this.status = status; }
     public String getDmPolicy() { return dmPolicy; }
     public void setDmPolicy(String dmPolicy) { this.dmPolicy = dmPolicy; }
     public Integer getDeleted() { return deleted; }

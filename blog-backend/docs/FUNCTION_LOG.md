@@ -380,3 +380,23 @@ blog-backend/
 - 执行方式：本地生成 seed.sql → scp 上传 → mysql 导入（临时关闭 FK_CHECKS 完成 DELETE，INSERT 含显式 id 保证 parent 引用一致）。
 - 验证：SQL 层（各文章条数 / 违禁词 0 / 同文重复 0 / 自回复 0 / 孤儿 0）+ API 层（GET /blogs/20/comments 返回昵称、replyCount=6；GET /comments/{id}/replies 返回 replyToUser）+ 首页与 API 200。
 - 回滚：gunzip < /root/db-backups/comments_20261112_115707.sql.gz | mysql 恢复旧表。
+
+### [2026-11-12] 新增后台管理系统全套服务端接口 + 部署 admin-web 管理后台（/admin/）+ 主前端重新部署
+- 背景：前端 agent 交付了 admin-web（Vue3 + Element Plus）管理后台，但服务端仅有 /admin/comments、/admin/feedbacks 两组接口，缺口较大；本次补齐后端并完成三个部署（后端 / 主站 / 管理后台）。
+- 服务端变更：
+  - 迁移 V13__add_user_status.sql：users 增加 status 列（0-正常 1-封禁，默认 0）；
+  - 新增接口（均需 admin 角色，SecurityConfig 已有 /api/v1/admin/** hasRole("ADMIN")）：
+    - GET /admin/stats：看板统计（用户/博客各状态/浏览/分类/标签/反馈数 + 近 14 天发文与新增用户趋势）；
+    - GET /admin/blogs、GET /admin/blogs/{id}、PUT /admin/blogs/{id}/status（发布/下架/转草稿）、DELETE /admin/blogs/{id}；
+    - GET /admin/users、PUT /admin/users/{id}/status（封禁/解封）、PUT /admin/users/{id}/role（user/admin）、PUT /admin/users/{id}/password（重置密码）；
+    - POST /admin/categories、PUT /admin/categories/{id}、DELETE /admin/categories/{id}（分类被博客引用时拒绝删除）；
+    - GET /admin/tags（含 blogCount）、PUT /admin/tags/{id}（重命名）、DELETE /admin/tags/{id}（同时清理关联）；
+    - DELETE /admin/feedbacks/{id}；/admin/feedbacks 列表与状态接口改用扁平结构（id/userId/username/nickname/avatar/contact/content/imageUrl/status/createdAt）；
+  - 封禁即时生效：JwtAuthenticationFilter 每次请求回查 users（已删除或 status=1 一律按未认证处理，角色以库为准）；AuthService.login 拒绝封禁账号；
+  - 自我保护：管理员不能封禁/解封自己、不能调整自己的角色。
+- admin-web 部署：main 分支 admin-web 构建产物（vite build --base=/admin/）→ /opt/admin-web；httpd.conf 增 ProxyPass /admin ! + Alias /admin /opt/admin-web + Directory 内 rewrite 回退 /admin/index.html（配置备份 httpd.conf.bak_20261112_admin）；前端路由改为 createWebHistory(import.meta.env.BASE_URL) 以适配子路径（已提交 main）。
+- 主前端部署：web-blog 仓库 main@bd7fff5（含"从个人主页发起私信复用既有会话"等提交），标准流程部署至 /opt/web-blog。
+- 执行方式：后端 mvn package → scp → 备份旧 jar（blog-backend-1.0.0.jar.bak_20261112_admin）→ 重启；DB 备份 /opt/backup_blog_20261112_admin.sql.gz；Flyway 启动时自动应用 V13。
+- 验证：admin token 实测 stats/blogs 分页/详情/状态切换(恢复原状)/users 分页/封禁切换(恢复原状)/分类增改删/tags/feedbacks/自我保护(40006) 全部通过；外网 / 200、/api/v1/* 200、/admin/ 200、/admin/login 回退 200、admin 静态资源 200；浏览器实测登录页正常渲染、无控制台错误。
+- 回滚：后端 mv /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261112_admin 回原 jar 并重启；httpd.conf 从 .bak_20261112_admin 恢复并 graceful；rm -rf /opt/admin-web；主站 rm -rf /opt/web-blog && mv /opt/web-blog.preadmin /opt/web-blog && systemctl restart web-blog。
+- 备注：管理后台地址 http://106.15.170.114/admin/ ，使用管理员账号（yz6688）登录；角色/封禁变更即时生效，无需等 token 过期。

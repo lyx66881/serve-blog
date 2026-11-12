@@ -16,9 +16,15 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import com.blog.entity.User;
+import com.blog.mapper.UserMapper;
+
 /**
  * JWT 认证过滤器：解析 Authorization: Bearer <token>，写入 SecurityContext。
  * 无 token / token 无效时不阻断请求，由授权规则决定 401。
+ * <p>
+ * 每次请求回查用户表：用户已删除或已封禁（status=1）立即按未认证处理；
+ * 角色以数据库为准，保证封禁 / 降权即时生效。
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -27,10 +33,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final InMemoryTokenBlacklist blacklist;
+    private final UserMapper userMapper;
 
-    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider, InMemoryTokenBlacklist blacklist) {
+    public JwtAuthenticationFilter(JwtTokenProvider tokenProvider, InMemoryTokenBlacklist blacklist,
+                                   UserMapper userMapper) {
         this.tokenProvider = tokenProvider;
         this.blacklist = blacklist;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -40,15 +49,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (token != null && !blacklist.contains(token)) {
             try {
                 Claims claims = tokenProvider.parseToken(token);
-                UserPrincipal principal = new UserPrincipal(
-                        Long.valueOf(claims.getSubject()),
-                        claims.get("username", String.class));
-                List<SimpleGrantedAuthority> authorities = "admin".equals(claims.get("role", String.class))
-                        ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"))
-                        : List.of(new SimpleGrantedAuthority("ROLE_USER"));
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        principal, null, authorities);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                Long userId = Long.valueOf(claims.getSubject());
+                User user = userMapper.selectById(userId);
+                if (user == null || Integer.valueOf(1).equals(user.getStatus())) {
+                    // 用户已删除或已封禁：按未认证处理
+                    SecurityContextHolder.clearContext();
+                } else {
+                    UserPrincipal principal = new UserPrincipal(userId, user.getUsername());
+                    List<SimpleGrantedAuthority> authorities = "admin".equals(user.getRole())
+                            ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"))
+                            : List.of(new SimpleGrantedAuthority("ROLE_USER"));
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            principal, null, authorities);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             } catch (JwtException | IllegalArgumentException e) {
                 // token 无效或已过期：清空上下文，按未认证处理
                 SecurityContextHolder.clearContext();

@@ -270,6 +270,76 @@ public class BlogService {
         return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
     }
 
+    // ==================== 管理端 ====================
+
+    /**
+     * 管理端：全站博客分页（含草稿 / 下架），支持标题关键字、状态、分类筛选。
+     */
+    public PageResult<BlogSummaryResponse> adminPage(String keyword, String status, Long categoryId,
+                                                     Long page, Long pageSize) {
+        long[] paging = clampPaging(page, pageSize);
+        LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>()
+                .select(Blog.class, f -> !LIST_EXCLUDED_COLUMNS.contains(f.getColumn()));
+        if (keyword != null && !keyword.isBlank()) {
+            wrapper.like(Blog::getTitle, keyword.trim());
+        }
+        if (status != null && !status.isBlank()) {
+            if (!isKnownStatus(status)) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "status 仅支持 draft / published / offline");
+            }
+            wrapper.eq(Blog::getStatus, status);
+        }
+        if (categoryId != null) {
+            wrapper.eq(Blog::getCategoryId, categoryId);
+        }
+        wrapper.orderByDesc(Blog::getCreatedAt);
+
+        Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
+    }
+
+    /**
+     * 管理端：博客详情（不限状态、不累计浏览量）。
+     */
+    public BlogResponse adminGetDetail(Long blogId) {
+        Blog blog = requireBlog(blogId);
+        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()),
+                commentService.countByBlog(blogId));
+    }
+
+    /**
+     * 管理端：变更博客状态（发布 / 下架 / 转草稿）。
+     */
+    public BlogResponse adminSetStatus(Long blogId, String status) {
+        if (!isKnownStatus(status)) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "status 仅支持 draft / published / offline");
+        }
+        Blog blog = requireBlog(blogId);
+        blogMapper.update(null, new LambdaUpdateWrapper<Blog>()
+                .eq(Blog::getId, blogId)
+                .set(Blog::getStatus, status));
+        blog.setStatus(status);
+        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()),
+                commentService.countByBlog(blogId));
+    }
+
+    /**
+     * 管理端：删除博客（逻辑删除，与作者自删行为一致）。
+     */
+    public void adminDelete(Long blogId) {
+        requireBlog(blogId);
+        blogMapper.deleteById(blogId);
+    }
+
+    private Blog requireBlog(Long blogId) {
+        Blog blog = blogMapper.selectById(blogId);
+        if (blog == null) {
+            throw new BizException(ErrorCode.BLOG_NOT_FOUND);
+        }
+        return blog;
+    }
+
     // ==================== 私有方法 ====================
 
     private String requireValidTitle(String title) {

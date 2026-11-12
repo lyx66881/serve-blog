@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.blog.common.BizException;
 import com.blog.common.ErrorCode;
 import com.blog.common.PageResult;
+import com.blog.dto.admin.AdminFeedbackResponse;
 import com.blog.dto.blog.BlogAuthorResponse;
 import com.blog.dto.feedback.FeedbackResponse;
 import com.blog.dto.feedback.SubmitFeedbackRequest;
@@ -91,25 +92,36 @@ public class FeedbackService {
         return PageResult.of(result, fb -> toResponse(fb, users));
     }
 
-    /** 管理端：全站反馈分页，可按 status 筛选，附提交人信息。 */
-    public PageResult<FeedbackResponse> adminPage(String status, Long page, Long pageSize) {
+    /** 管理端：全站反馈分页，可按 status 筛选，附提交人信息（扁平结构）。 */
+    public PageResult<AdminFeedbackResponse> adminPage(String status, Long page, Long pageSize) {
         Page<Feedback> result = feedbackMapper.selectPage(page(page, pageSize),
                 new LambdaQueryWrapper<Feedback>()
                         .eq(status != null && !status.isBlank(), Feedback::getStatus, status)
                         .orderByDesc(Feedback::getCreatedAt));
         Map<Long, User> users = loadUsers(result.getRecords());
-        return PageResult.of(result, fb -> toResponse(fb, users));
+        return PageResult.of(result, fb -> toAdminResponse(fb, users));
     }
 
-    /** 管理端：更新反馈处理状态。 */
-    public FeedbackResponse adminSetStatus(Long id, String status) {
+    /** 管理端：更新反馈处理状态（pending-待处理 / processed-已处理 / ignored-已忽略）。 */
+    public AdminFeedbackResponse adminSetStatus(Long id, String status) {
+        if (!"pending".equals(status) && !"processed".equals(status) && !"ignored".equals(status)) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "status 仅支持 pending / processed / ignored");
+        }
         Feedback fb = feedbackMapper.selectById(id);
         if (fb == null) {
             throw new BizException(ErrorCode.NOT_FOUND, "反馈不存在");
         }
         fb.setStatus(status);
         feedbackMapper.updateById(fb);
-        return toResponse(fb, Map.of());
+        return toAdminResponse(fb, loadUsers(List.of(fb)));
+    }
+
+    /** 管理端：删除反馈（物理删除）。 */
+    public void adminDelete(Long id) {
+        if (feedbackMapper.selectById(id) == null) {
+            throw new BizException(ErrorCode.NOT_FOUND, "反馈不存在");
+        }
+        feedbackMapper.deleteById(id);
     }
 
     private Page<Feedback> page(Long page, Long pageSize) {
@@ -132,5 +144,17 @@ public class FeedbackService {
                 user.getNickname() == null ? user.getUsername() : user.getNickname(), user.getAvatar());
         return new FeedbackResponse(fb.getId(), author, fb.getContent(),
                 fb.getImageUrl(), fb.getImageWidth(), fb.getImageHeight(), fb.getStatus(), fb.getCreatedAt());
+    }
+
+    private AdminFeedbackResponse toAdminResponse(Feedback fb, Map<Long, User> users) {
+        User user = users.get(fb.getUserId());
+        return new AdminFeedbackResponse(
+                fb.getId(), fb.getUserId(),
+                user == null ? null : user.getUsername(),
+                user == null ? null : user.getNickname(),
+                user == null ? null : user.getAvatar(),
+                null,
+                fb.getContent(), fb.getImageUrl(), fb.getImageWidth(), fb.getImageHeight(),
+                fb.getStatus(), fb.getCreatedAt());
     }
 }
