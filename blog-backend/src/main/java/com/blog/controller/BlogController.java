@@ -14,6 +14,7 @@ import com.blog.common.ApiResponse;
 import com.blog.common.PageResult;
 import com.blog.dto.blog.BlogResponse;
 import com.blog.dto.blog.BlogSaveRequest;
+import com.blog.dto.blog.BlogSearchResponse;
 import com.blog.dto.blog.BlogSummaryResponse;
 import com.blog.security.SecurityUtils;
 import com.blog.service.BlogService;
@@ -43,6 +44,15 @@ public class BlogController {
             @RequestParam(required = false) Long authorId,
             @RequestParam(required = false) String sort) {
         return ApiResponse.ok(blogService.listPublic(page, pageSize, keyword, categoryId, tagId, authorId, sort));
+    }
+
+    @Operation(summary = "站内搜索", description = "按标题或作者（用户名/昵称）模糊搜索已发布公开文章；附带命中的作者列表")
+    @GetMapping("/search")
+    public ApiResponse<BlogSearchResponse> search(
+            @RequestParam String keyword,
+            @RequestParam(defaultValue = "1") Long page,
+            @RequestParam(defaultValue = "10") Long pageSize) {
+        return ApiResponse.ok(blogService.search(keyword, page, pageSize));
     }
 
     @Operation(summary = "我的博客列表", description = "需登录；status 可选 draft / published / offline，不传返回全部")

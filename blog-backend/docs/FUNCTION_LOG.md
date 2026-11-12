@@ -418,3 +418,10 @@ blog-backend/
 - 执行方式：git pull → NEXT_PUBLIC_API_BASE_URL=/api/v1 npm run build → tar（standalone/static/public）→ scp → /opt/web-blog 替换（旧版本保留于 web-blog.prenc）→ systemctl restart web-blog。
 - 验证：服务 active；3000/80 均 200；/notifications 页面 200。
 - 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.prenc /opt/web-blog && systemctl restart web-blog。
+
+### [2026-11-12] 新增站内搜索接口（标题/作者模糊查询）
+- 对象：服务端新增 GET /api/v1/blogs/search；现有 GET /blogs 的 keyword（标题+正文）与 authorId 精确过滤保持不变。
+- 变更：搜索范围=标题 OR 作者（username/nickname），仅返回已发布公开文章，按发布时间倒序分页；响应在 items/total/page/pageSize/pages 基础上附 matchedAuthors（命中作者，最多 5 个，供前端作者建议）；空关键词返回 40006；作者名命中的用户其全部已发布公开文章进入结果。
+- 执行方式：本地构建 → scp → 备份旧 jar（blog-backend-1.0.0.jar.bak_20261112_search）→ 重启；无数据库迁移。
+- 验证：keyword=Dart 命中 1 篇；keyword=yz6688 命中其全部 6 篇且 matchedAuthors 返回 yz6688；不存在词返回 total=0/authors=[]；空词 40006。
+- 回滚：mv /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261112_search 回原 jar 重启即可。

@@ -21,6 +21,7 @@ import com.blog.common.util.TipTapTextExtractor;
 import com.blog.dto.blog.BlogAuthorResponse;
 import com.blog.dto.blog.BlogResponse;
 import com.blog.dto.blog.BlogSaveRequest;
+import com.blog.dto.blog.BlogSearchResponse;
 import com.blog.dto.blog.BlogSummaryResponse;
 import com.blog.dto.tag.TagResponse;
 import com.blog.entity.Blog;
@@ -225,6 +226,51 @@ public class BlogService {
         Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
         Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
         return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
+    }
+
+    /**
+     * 站内搜索：标题或作者（用户名/昵称）模糊匹配，仅已发布公开文章。
+     * 同时返回命中的作者（最多 5 个，按用户 id 升序）供前端展示作者建议；
+     * 作者名命中的用户，其全部已发布公开文章都会进入结果。
+     */
+    public BlogSearchResponse search(String keyword, Long page, Long pageSize) {
+        if (keyword == null || keyword.isBlank()) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "搜索词不能为空");
+        }
+        long[] paging = clampPaging(page, pageSize);
+        String kw = keyword.trim();
+
+        List<BlogAuthorResponse> matchedAuthors;
+        List<Long> authorIds;
+        List<User> users = userMapper.selectList(new LambdaQueryWrapper<User>()
+                .and(w -> w.like(User::getUsername, kw).or().like(User::getNickname, kw))
+                .orderByAsc(User::getId)
+                .last("LIMIT 5"));
+        if (users.isEmpty()) {
+            matchedAuthors = List.of();
+            authorIds = List.of(-1L); // 避免空 IN
+        } else {
+            matchedAuthors = users.stream()
+                    .map(u -> new BlogAuthorResponse(u.getId(), u.getUsername(),
+                            u.getNickname() == null ? u.getUsername() : u.getNickname(), u.getAvatar()))
+                    .toList();
+            authorIds = users.stream().map(User::getId).toList();
+        }
+
+        LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>()
+                .eq(Blog::getStatus, Blog.STATUS_PUBLISHED)
+                .eq(Blog::getIsPublic, 1)
+                .select(Blog.class, f -> !LIST_EXCLUDED_COLUMNS.contains(f.getColumn()))
+                .and(w -> w.like(Blog::getTitle, kw).or().in(Blog::getAuthorId, authorIds))
+                .orderByDesc(Blog::getPublishedAt)
+                .orderByDesc(Blog::getCreatedAt);
+        Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        List<BlogSummaryResponse> items = result.getRecords().stream()
+                .map(blog -> toSummaryResponse(blog, result.getRecords(), commentCounts))
+                .toList();
+        return new BlogSearchResponse(result.getTotal(), paging[0], paging[1], result.getPages(),
+                matchedAuthors, items);
     }
 
     /**
