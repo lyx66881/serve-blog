@@ -411,3 +411,10 @@ blog-backend/
 - 执行方式：本地 mvn package → scp → 备份旧 jar（blog-backend-1.0.0.jar.bak_20261112_notify）→ 重启；Flyway 自动应用 V14。
 - 验证：deploytest(1) 关注 mochen_dev(100) → 100 的未读数 0→1、列表含关注人昵称/头像、read-all 后未读数 0、单条已读链路正常；已取消关注并清理测试通知（表恢复 0 行）。
 - 回滚：mv /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261112_notify 回原 jar 重启；如需删表 DROP TABLE notifications（Flyway 历史需同步处理）。
+
+### [2026-11-12] 前端重新发布（通知中心页面上线）
+- 对象：web-blog 主站（仅前端，无服务端变更）。
+- 变更：部署 web-blog main@dcc7e3c「feat: 通知中心独立页面（/notifications）」，前端 agent 已完成关注消息提示 UI。
+- 执行方式：git pull → NEXT_PUBLIC_API_BASE_URL=/api/v1 npm run build → tar（standalone/static/public）→ scp → /opt/web-blog 替换（旧版本保留于 web-blog.prenc）→ systemctl restart web-blog。
+- 验证：服务 active；3000/80 均 200；/notifications 页面 200。
+- 回滚：rm -rf /opt/web-blog && mv /opt/web-blog.prenc /opt/web-blog && systemctl restart web-blog。
