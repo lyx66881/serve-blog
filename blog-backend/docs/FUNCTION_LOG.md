@@ -426,6 +426,14 @@ blog-backend/
 - 验证：keyword=Dart 命中 1 篇；keyword=yz6688 命中其全部 6 篇且 matchedAuthors 返回 yz6688；不存在词返回 total=0/authors=[]；空词 40006。
 - 回滚：mv /opt/blog-backend/blog-backend-1.0.0.jar.bak_20261112_search 回原 jar 重启即可。
 
+### [2026-11-19] 启用 HTTPS（www.live9601.cn）
+- 现象：https://www.live9601.cn 无法访问，http 正常。排查结论：Apache 从未监听 443（httpd.conf 的 httpd-ssl.conf Include 被注释、无 443 vhost），证书实际位于 /ssl/cert.pem + /ssl/cert.key（CN=www.live9601.cn，SAN 含 live9601.cn/www.live9601.cn，有效期 2026-11-17 ~ 2027-02-14，RSA key modulus 与证书匹配）。
+- 变更：仅在 httpd.conf 追加 BLOG_SSL_443 块（Listen 443 + VirtualHost *:443：SSLEngine、证书双路径、SSLProtocol all -SSLv3、HIGH 加密套件）；反代规则为全局 IfModule 块自动适用 443，/api/v1/ws/ 已带 upgrade=websocket 故 wss 同步可用。服务端与前端代码零改动（前端 WS URL 协议自适应 https→wss，API 相对路径同源）。
+- 执行方式：备份 httpd.conf.bak_20261119_ssl → 追加配置 → apachectl configtest Syntax OK → graceful → 443 监听确认。
+- 验证：外网 https://www.live9601.cn 主页 200、/admin/ 200、/api/v1/categories 200、wss 代理穿透到后端（无效 token 响应与 http 下行为一致）；TLSv1.2/1.3 握手正常。
+- 注意：证书 3 个月有效期（2027-02-14 到期），续期后替换 /ssl/cert.pem 与 /ssl/cert.key 并 apachectl graceful 即可；http 未强制跳转 https（如需 301 再另行配置）。
+- 回滚：cp /usr/local/apache/conf/httpd.conf.bak_20261119_ssl /usr/local/apache/conf/httpd.conf && apachectl graceful。
+
 ### [2026-11-12] 三端全量重新拉取打包发布（服务端/主站/管理后台）
 - 对象：blog-backend（trae/agent-UcjUQu@6aac6c9）、web-blog（main@e5b81ae「首页搜索对接 /blogs/search + 截断省略号贴底」）、admin-web（serve-blog main@ef566c2「后台 UI 统一「墨与瓷」设计语言，新增管理员修改密码与用户-博客联动」）。
 - 执行方式：三仓库拉取最新 → 本地构建（mvn package / npm build --base=/admin/ / NEXT_PUBLIC_API_BASE_URL=/api/v1 npm run build）→ scp（md5 校验一致）→ 服务器替换：旧 jar 备份 blog-backend-1.0.0.jar.bak_20261112_full、旧后台保留 /opt/admin-web.pre、旧主站保留 /opt/web-blog.pre2 → 重启两服务。
