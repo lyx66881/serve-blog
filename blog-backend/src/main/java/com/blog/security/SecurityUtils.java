@@ -42,19 +42,11 @@ public final class SecurityUtils {
     }
 
     /**
-     * 当前用户是否为管理员。
+     * 当前登录用户是否为管理员。
      */
     public static boolean isAdmin() {
-        UserPrincipal principal = getPrincipal();
-        return principal != null && principal.isAdmin();
-    }
-
-    /**
-     * 要求当前登录用户为管理员，否则抛出 FORBIDDEN。
-     */
-    public static void requireAdmin() {
-        if (!isAdmin()) {
-            throw new BizException(ErrorCode.FORBIDDEN, "需要管理员权限");
-        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
     }
 }

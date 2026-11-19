@@ -20,10 +20,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
-/**
- * 管理端博客管理接口（SecurityConfig 层已限定 ROLE_ADMIN）。
- */
-@Tag(name = "管理端-博客", description = "全站博客管理（仅管理员）")
+@Tag(name = "博客管理", description = "管理员：全站博客管理（需 admin 角色）")
 @RestController
 @RequestMapping("/api/v1/admin/blogs")
 public class AdminBlogController {
@@ -34,34 +31,34 @@ public class AdminBlogController {
         this.blogService = blogService;
     }
 
-    @Operation(summary = "博客列表", description = "全部作者与状态；keyword 匹配标题或作者用户名/昵称")
+    @Operation(summary = "全站博客列表", description = "管理员接口；含草稿与下架，支持 keyword 标题模糊 / status / categoryId 筛选")
     @GetMapping
-    public ApiResponse<PageResult<BlogSummaryResponse>> list(
-            @RequestParam(required = false) Long page,
-            @RequestParam(required = false) Long pageSize,
+    public ApiResponse<PageResult<BlogSummaryResponse>> page(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(required = false) Long authorId) {
-        return ApiResponse.ok(blogService.adminList(page, pageSize, keyword, status, categoryId, authorId));
+            @RequestParam(defaultValue = "1") Long page,
+            @RequestParam(defaultValue = "10") Long pageSize) {
+        return ApiResponse.ok(blogService.adminPage(keyword, status, categoryId, page, pageSize));
     }
 
-    @Operation(summary = "博客详情", description = "查看任意博客（含草稿/下架），不增加浏览量")
+    @Operation(summary = "博客详情", description = "管理员接口；任意状态可看，不累计浏览量")
     @GetMapping("/{id}")
     public ApiResponse<BlogResponse> detail(@PathVariable Long id) {
-        return ApiResponse.ok(blogService.adminDetail(id));
+        return ApiResponse.ok(blogService.adminGetDetail(id));
     }
 
-    @Operation(summary = "修改博客状态", description = "status：published-上架 / offline-下架 / draft-转草稿")
+    @Operation(summary = "变更博客状态", description = "管理员接口；status = draft-转草稿 / published-发布 / offline-下架")
     @PutMapping("/{id}/status")
-    public ApiResponse<BlogResponse> updateStatus(@PathVariable Long id, @Valid @RequestBody AdminBlogStatusRequest request) {
-        return ApiResponse.ok(blogService.adminUpdateStatus(id, request.status()));
+    public ApiResponse<BlogResponse> setStatus(@PathVariable Long id,
+                                               @Valid @RequestBody AdminBlogStatusRequest request) {
+        return ApiResponse.ok(blogService.adminSetStatus(id, request.status()));
     }
 
-    @Operation(summary = "删除博客", description = "逻辑删除任意作者的博客")
+    @Operation(summary = "删除博客", description = "管理员接口；逻辑删除，不可恢复")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         blogService.adminDelete(id);
-        return ApiResponse.ok();
+        return ApiResponse.ok(null);
     }
 }

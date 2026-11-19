@@ -11,18 +11,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.blog.common.ApiResponse;
 import com.blog.common.PageResult;
-import com.blog.dto.admin.AdminFeedbackStatusRequest;
-import com.blog.dto.feedback.FeedbackResponse;
+import com.blog.dto.admin.AdminFeedbackResponse;
+import com.blog.dto.feedback.FeedbackStatusRequest;
 import com.blog.service.FeedbackService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
-/**
- * 管理端意见反馈管理接口（SecurityConfig 层已限定 ROLE_ADMIN）。
- */
-@Tag(name = "管理端-意见反馈", description = "意见反馈查看与处理（仅管理员）")
+@Tag(name = "反馈管理", description = "管理员：全站意见反馈处理（需 admin 角色）")
 @RestController
 @RequestMapping("/api/v1/admin/feedbacks")
 public class AdminFeedbackController {
@@ -33,25 +30,26 @@ public class AdminFeedbackController {
         this.feedbackService = feedbackService;
     }
 
-    @Operation(summary = "反馈列表", description = "可按 status 筛选（pending-待处理 processed-已处理），按提交时间倒序")
+    @Operation(summary = "全站反馈列表", description = "管理员接口；status 可选 pending / processed / ignored，不传返回全部")
     @GetMapping
-    public ApiResponse<PageResult<FeedbackResponse>> list(
-            @RequestParam(required = false) Long page,
-            @RequestParam(required = false) Long pageSize,
-            @RequestParam(required = false) String status) {
+    public ApiResponse<PageResult<AdminFeedbackResponse>> page(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") Long page,
+            @RequestParam(defaultValue = "10") Long pageSize) {
         return ApiResponse.ok(feedbackService.adminPage(status, page, pageSize));
     }
 
-    @Operation(summary = "更新处理状态", description = "status：pending-待处理 / processed-已处理")
+    @Operation(summary = "设置反馈状态", description = "管理员接口；status = pending-待处理 / processed-已处理 / ignored-已忽略")
     @PutMapping("/{id}/status")
-    public ApiResponse<FeedbackResponse> updateStatus(@PathVariable Long id, @Valid @RequestBody AdminFeedbackStatusRequest request) {
-        return ApiResponse.ok(feedbackService.updateStatus(id, request.status()));
+    public ApiResponse<AdminFeedbackResponse> setStatus(@PathVariable Long id,
+                                                        @Valid @RequestBody FeedbackStatusRequest request) {
+        return ApiResponse.ok(feedbackService.adminSetStatus(id, request.status()));
     }
 
-    @Operation(summary = "删除反馈", description = "逻辑删除")
+    @Operation(summary = "删除反馈", description = "管理员接口；物理删除")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
-        feedbackService.delete(id);
-        return ApiResponse.ok();
+        feedbackService.adminDelete(id);
+        return ApiResponse.ok(null);
     }
 }

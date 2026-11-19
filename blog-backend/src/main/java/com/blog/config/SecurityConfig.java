@@ -67,16 +67,20 @@ public class SecurityConfig {
                         // 我自己 / 我的博客：必须认证（须放在通配 permitAll 之前）
                         .requestMatchers(HttpMethod.GET, "/api/v1/users/me", "/api/v1/users/me/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/blogs/my", "/api/v1/blogs/my/**").authenticated()
-                        // 管理端接口：仅管理员
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                        // 意见反馈提交：公开（可选携带登录态记录来源用户）
-                        .requestMatchers(HttpMethod.POST, "/api/v1/feedback").permitAll()
-                        // 公开浏览：博客列表/详情、用户主页及其博客、分类、标签
+                        // 公开浏览：博客列表/详情、评论列表、用户主页及其博客、分类、标签
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/blogs", "/api/v1/blogs/*",
+                                "/api/v1/blogs/*/comments",
+                                "/api/v1/comments/*/replies",
                                 "/api/v1/users/*", "/api/v1/users/*/blogs",
+                                "/api/v1/users/*/followers", "/api/v1/users/*/following",
+                                "/api/v1/users/*/follow-stats",
                                 "/api/v1/categories", "/api/v1/categories/*",
                                 "/api/v1/tags").permitAll()
+                        // WebSocket 握手（鉴权在 JwtHandshakeInterceptor 用 token 查询参数完成）
+                        .requestMatchers("/api/v1/ws/**").permitAll()
+                        // 管理端：仅 admin 角色
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         // 其余一律需要认证
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex

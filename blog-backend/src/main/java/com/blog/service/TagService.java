@@ -1,17 +1,18 @@
 package com.blog.service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.blog.common.BizException;
 import com.blog.common.ErrorCode;
 import com.blog.dto.admin.AdminTagResponse;
@@ -93,48 +94,56 @@ public class TagService {
         return created;
     }
 
-    // ==================== 管理端操作（/api/v1/admin/**，仅管理员） ====================
+    // ==================== 管理端 ====================
 
     /**
-     * 管理端标签列表（含关联博客数）。
+     * 管理端：全量标签列表，附关联博客数（按 blog_tags 关联计数）。
      */
     public List<AdminTagResponse> adminList() {
         List<Tag> tags = tagMapper.selectList(new LambdaQueryWrapper<Tag>().orderByAsc(Tag::getName));
-        Map<Long, Long> blogCounts = blogTagMapper.selectList(new LambdaQueryWrapper<BlogTag>()).stream()
-                .collect(Collectors.groupingBy(BlogTag::getTagId, Collectors.counting()));
+        if (tags.isEmpty()) {
+            return List.of();
+        }
+        QueryWrapper<BlogTag> qw = new QueryWrapper<BlogTag>()
+                .select("tag_id AS tagId", "COUNT(*) AS cnt")
+                .groupBy("tag_id");
+        Map<Long, Long> counts = new HashMap<>();
+        for (Map<String, Object> row : blogTagMapper.selectMaps(qw)) {
+            Object tid = row.get("tagId");
+            Object cnt = row.get("cnt");
+            if (tid != null && cnt != null) {
+                counts.put(Long.valueOf(tid.toString()), Long.valueOf(cnt.toString()));
+            }
+        }
         return tags.stream()
-                .map(t -> new AdminTagResponse(t.getId(), t.getName(), blogCounts.getOrDefault(t.getId(), 0L)))
+                .map(t -> new AdminTagResponse(t.getId(), t.getName(), counts.getOrDefault(t.getId(), 0L)))
                 .toList();
     }
 
     /**
-     * 管理端重命名标签（全局唯一，最长 30 字符）。
+     * 管理端：重命名标签（全局唯一，排除自身）。
      */
-    @Transactional
     public TagResponse adminRename(Long id, String name) {
         Tag tag = requireTag(id);
-        String trimmed = name.trim();
+        String trimmed = name == null ? "" : name.trim();
         if (trimmed.isEmpty()) {
             throw new BizException(ErrorCode.PARAM_INVALID, "标签名不能为空");
         }
         if (trimmed.length() > MAX_TAG_NAME_LENGTH) {
             throw new BizException(ErrorCode.PARAM_INVALID, "标签长度不能超过 " + MAX_TAG_NAME_LENGTH + " 字符");
         }
-        Tag sameName = tagMapper.selectOne(new LambdaQueryWrapper<Tag>().eq(Tag::getName, trimmed).last("LIMIT 1"));
-        if (sameName != null && !sameName.getId().equals(id)) {
+        Long duplicated = tagMapper.selectCount(new LambdaQueryWrapper<Tag>()
+                .eq(Tag::getName, trimmed).ne(Tag::getId, id));
+        if (duplicated != null && duplicated > 0) {
             throw new BizException(ErrorCode.CONFLICT, "标签名已存在");
         }
         tag.setName(trimmed);
-        try {
-            tagMapper.updateById(tag);
-        } catch (DuplicateKeyException e) {
-            throw new BizException(ErrorCode.CONFLICT, "标签名已存在");
-        }
+        tagMapper.updateById(tag);
         return new TagResponse(tag.getId(), tag.getName());
     }
 
     /**
-     * 管理端删除标签：先删除博客-标签关联，再删除标签本身。
+     * 管理端：删除标签并清除其与博客的关联。
      */
     @Transactional
     public void adminDelete(Long id) {

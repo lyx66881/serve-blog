@@ -21,6 +21,7 @@ import com.blog.common.util.TipTapTextExtractor;
 import com.blog.dto.blog.BlogAuthorResponse;
 import com.blog.dto.blog.BlogResponse;
 import com.blog.dto.blog.BlogSaveRequest;
+import com.blog.dto.blog.BlogSearchResponse;
 import com.blog.dto.blog.BlogSummaryResponse;
 import com.blog.dto.tag.TagResponse;
 import com.blog.entity.Blog;
@@ -50,15 +51,18 @@ public class BlogService {
     private final CategoryMapper categoryMapper;
     private final TagMapper tagMapper;
     private final TagService tagService;
+    private final CommentService commentService;
 
     public BlogService(BlogMapper blogMapper, BlogTagMapper blogTagMapper, UserMapper userMapper,
-                       CategoryMapper categoryMapper, TagMapper tagMapper, TagService tagService) {
+                       CategoryMapper categoryMapper, TagMapper tagMapper, TagService tagService,
+                       CommentService commentService) {
         this.blogMapper = blogMapper;
         this.blogTagMapper = blogTagMapper;
         this.userMapper = userMapper;
         this.categoryMapper = categoryMapper;
         this.tagMapper = tagMapper;
         this.tagService = tagService;
+        this.commentService = commentService;
     }
 
     // ==================== 写操作 ====================
@@ -155,7 +159,6 @@ public class BlogService {
     public void delete(Long operatorId, Long blogId) {
         requireOwnedBlog(operatorId, blogId);
         blogMapper.deleteById(blogId);
-        cleanTagRelations(blogId);
     }
 
     // ==================== 读操作 ====================
@@ -181,7 +184,8 @@ public class BlogService {
                     .setSql("view_count = view_count + 1"));
             blog.setViewCount(blog.getViewCount() == null ? 1 : blog.getViewCount() + 1);
         }
-        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()));
+        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()),
+                commentService.countByBlog(blogId));
     }
 
     /**
@@ -220,7 +224,53 @@ public class BlogService {
         }
 
         Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
-        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
+    }
+
+    /**
+     * 站内搜索：标题或作者（用户名/昵称）模糊匹配，仅已发布公开文章。
+     * 同时返回命中的作者（最多 5 个，按用户 id 升序）供前端展示作者建议；
+     * 作者名命中的用户，其全部已发布公开文章都会进入结果。
+     */
+    public BlogSearchResponse search(String keyword, Long page, Long pageSize) {
+        if (keyword == null || keyword.isBlank()) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "搜索词不能为空");
+        }
+        long[] paging = clampPaging(page, pageSize);
+        String kw = keyword.trim();
+
+        List<BlogAuthorResponse> matchedAuthors;
+        List<Long> authorIds;
+        List<User> users = userMapper.selectList(new LambdaQueryWrapper<User>()
+                .and(w -> w.like(User::getUsername, kw).or().like(User::getNickname, kw))
+                .orderByAsc(User::getId)
+                .last("LIMIT 5"));
+        if (users.isEmpty()) {
+            matchedAuthors = List.of();
+            authorIds = List.of(-1L); // 避免空 IN
+        } else {
+            matchedAuthors = users.stream()
+                    .map(u -> new BlogAuthorResponse(u.getId(), u.getUsername(),
+                            u.getNickname() == null ? u.getUsername() : u.getNickname(), u.getAvatar()))
+                    .toList();
+            authorIds = users.stream().map(User::getId).toList();
+        }
+
+        LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>()
+                .eq(Blog::getStatus, Blog.STATUS_PUBLISHED)
+                .eq(Blog::getIsPublic, 1)
+                .select(Blog.class, f -> !LIST_EXCLUDED_COLUMNS.contains(f.getColumn()))
+                .and(w -> w.like(Blog::getTitle, kw).or().in(Blog::getAuthorId, authorIds))
+                .orderByDesc(Blog::getPublishedAt)
+                .orderByDesc(Blog::getCreatedAt);
+        Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        List<BlogSummaryResponse> items = result.getRecords().stream()
+                .map(blog -> toSummaryResponse(blog, result.getRecords(), commentCounts))
+                .toList();
+        return new BlogSearchResponse(result.getTotal(), paging[0], paging[1], result.getPages(),
+                matchedAuthors, items);
     }
 
     /**
@@ -239,7 +289,8 @@ public class BlogService {
         wrapper.orderByDesc(Blog::getPublishedAt).orderByDesc(Blog::getCreatedAt);
 
         Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
-        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
     }
 
     /**
@@ -261,29 +312,30 @@ public class BlogService {
         wrapper.orderByDesc(Blog::getUpdatedAt);
 
         Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
-        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
     }
 
-    // ==================== 管理端操作（/api/v1/admin/**，仅管理员） ====================
+    // ==================== 管理端 ====================
 
     /**
-     * 管理端博客列表：全部作者、全部状态；keyword 匹配标题或作者用户名/昵称。
+     * 管理端：全站博客分页（含草稿 / 下架），支持标题关键字、状态、分类筛选。
      */
-    public PageResult<BlogSummaryResponse> adminList(Long page, Long pageSize, String keyword,
-                                                     String status, Long categoryId, Long authorId) {
+    public PageResult<BlogSummaryResponse> adminPage(String keyword, String status, Long categoryId,
+                                                     Long page, Long pageSize) {
         long[] paging = clampPaging(page, pageSize);
-
         LambdaQueryWrapper<Blog> wrapper = new LambdaQueryWrapper<Blog>()
                 .select(Blog.class, f -> !LIST_EXCLUDED_COLUMNS.contains(f.getColumn()));
         if (keyword != null && !keyword.isBlank()) {
             String kw = keyword.trim();
-            List<Long> matchedAuthorIds = userMapper.selectList(new LambdaQueryWrapper<User>()
-                            .like(User::getUsername, kw).or().like(User::getNickname, kw))
+            List<Long> authorIds = userMapper.selectList(new LambdaQueryWrapper<User>()
+                    .select(User::getId)
+                    .like(User::getUsername, kw).or().like(User::getNickname, kw))
                     .stream().map(User::getId).toList();
             wrapper.and(w -> {
                 w.like(Blog::getTitle, kw);
-                if (!matchedAuthorIds.isEmpty()) {
-                    w.or().in(Blog::getAuthorId, matchedAuthorIds);
+                if (!authorIds.isEmpty()) {
+                    w.or().in(Blog::getAuthorId, authorIds);
                 }
             });
         }
@@ -296,67 +348,55 @@ public class BlogService {
         if (categoryId != null) {
             wrapper.eq(Blog::getCategoryId, categoryId);
         }
-        if (authorId != null) {
-            wrapper.eq(Blog::getAuthorId, authorId);
-        }
         wrapper.orderByDesc(Blog::getCreatedAt);
 
         Page<Blog> result = blogMapper.selectPage(Page.of(paging[0], paging[1]), wrapper);
-        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords()));
+        Map<Long, Long> commentCounts = commentService.countByBlogIds(idsOf(result.getRecords()));
+        return PageResult.of(result, blog -> toSummaryResponse(blog, result.getRecords(), commentCounts));
     }
 
     /**
-     * 管理端博客详情：不校验作者与公开性，不增加浏览量。
+     * 管理端：博客详情（不限状态、不累计浏览量）。
      */
-    public BlogResponse adminDetail(Long blogId) {
-        Blog blog = blogMapper.selectById(blogId);
-        if (blog == null) {
-            throw new BizException(ErrorCode.BLOG_NOT_FOUND);
-        }
-        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()));
+    public BlogResponse adminGetDetail(Long blogId) {
+        Blog blog = requireBlog(blogId);
+        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()),
+                commentService.countByBlog(blogId));
     }
 
     /**
-     * 管理端修改博客状态（上架 / 下架 / 转草稿）。
+     * 管理端：变更博客状态（发布 / 下架 / 转草稿）。
      */
-    @Transactional
-    public BlogResponse adminUpdateStatus(Long blogId, String status) {
+    public BlogResponse adminSetStatus(Long blogId, String status) {
         if (!isKnownStatus(status)) {
             throw new BizException(ErrorCode.PARAM_INVALID, "status 仅支持 draft / published / offline");
         }
-        Blog blog = blogMapper.selectById(blogId);
-        if (blog == null) {
-            throw new BizException(ErrorCode.BLOG_NOT_FOUND);
-        }
+        Blog blog = requireBlog(blogId);
+        blogMapper.update(null, new LambdaUpdateWrapper<Blog>()
+                .eq(Blog::getId, blogId)
+                .set(Blog::getStatus, status));
         blog.setStatus(status);
-        if (Blog.STATUS_PUBLISHED.equals(status) && blog.getPublishedAt() == null) {
-            blog.setPublishedAt(LocalDateTime.now());
-        }
-        blogMapper.updateById(blog);
-        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()));
+        return toDetailResponse(blog, loadTags(List.of(blogId)).getOrDefault(blogId, List.of()),
+                commentService.countByBlog(blogId));
     }
 
     /**
-     * 管理端删除博客（逻辑删除）。
+     * 管理端：删除博客（逻辑删除，与作者自删行为一致）。
      */
-    @Transactional
     public void adminDelete(Long blogId) {
+        requireBlog(blogId);
+        blogMapper.deleteById(blogId);
+    }
+
+    private Blog requireBlog(Long blogId) {
         Blog blog = blogMapper.selectById(blogId);
         if (blog == null) {
             throw new BizException(ErrorCode.BLOG_NOT_FOUND);
         }
-        blogMapper.deleteById(blogId);
-        cleanTagRelations(blogId);
+        return blog;
     }
 
     // ==================== 私有方法 ====================
-
-    /**
-     * 清理博客-标签关联（博客逻辑删除后关联无意义，且会影响管理端标签计数）。
-     */
-    private void cleanTagRelations(Long blogId) {
-        blogTagMapper.delete(new LambdaQueryWrapper<BlogTag>().eq(BlogTag::getBlogId, blogId));
-    }
 
     private String requireValidTitle(String title) {
         if (title == null || title.isBlank()) {
@@ -434,6 +474,10 @@ public class BlogService {
         return new long[]{p, s};
     }
 
+    private List<Long> idsOf(List<Blog> blogs) {
+        return blogs.stream().map(Blog::getId).toList();
+    }
+
     private PageResult<BlogSummaryResponse> emptyPage(long page, long pageSize) {
         return new PageResult<>(List.of(), 0, page, pageSize, 0);
     }
@@ -449,7 +493,7 @@ public class BlogService {
 
     // ==================== 响应组装 ====================
 
-    private BlogSummaryResponse toSummaryResponse(Blog blog, List<Blog> context) {
+    private BlogSummaryResponse toSummaryResponse(Blog blog, List<Blog> context, Map<Long, Long> commentCounts) {
         Map<Long, BlogAuthorResponse> authors = loadAuthors(context);
         Map<Long, String> categoryNames = loadCategoryNames(context);
         Map<Long, List<TagResponse>> tags = loadTags(context.stream().map(Blog::getId).toList());
@@ -466,12 +510,13 @@ public class BlogService {
                 blog.getStatus(),
                 isPublicBlog(blog),
                 blog.getViewCount(),
+                commentCounts == null ? 0L : commentCounts.getOrDefault(blog.getId(), 0L),
                 blog.getPublishedAt(),
                 blog.getCreatedAt(),
                 blog.getUpdatedAt());
     }
 
-    private BlogResponse toDetailResponse(Blog blog, List<TagResponse> tags) {
+    private BlogResponse toDetailResponse(Blog blog, List<TagResponse> tags, Long commentCount) {
         Map<Long, BlogAuthorResponse> authors = loadAuthors(List.of(blog));
         Map<Long, String> categoryNames = loadCategoryNames(List.of(blog));
 
@@ -490,6 +535,7 @@ public class BlogService {
                 blog.getContentHtml(),
                 blog.getContentVersion(),
                 blog.getViewCount(),
+                commentCount == null ? 0L : commentCount,
                 blog.getPublishedAt(),
                 blog.getCreatedAt(),
                 blog.getUpdatedAt());

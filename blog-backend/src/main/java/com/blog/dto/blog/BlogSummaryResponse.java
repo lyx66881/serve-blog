@@ -20,6 +20,7 @@ public record BlogSummaryResponse(
         String status,
         Boolean isPublic,
         Long viewCount,
+        Long commentCount,
         LocalDateTime publishedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

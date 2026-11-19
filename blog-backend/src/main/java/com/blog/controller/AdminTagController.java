@@ -20,10 +20,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
-/**
- * 管理端标签管理接口（SecurityConfig 层已限定 ROLE_ADMIN）。
- */
-@Tag(name = "管理端-标签", description = "标签重命名/删除（仅管理员）")
+@Tag(name = "标签管理", description = "管理员：标签维护（需 admin 角色）")
 @RestController
 @RequestMapping("/api/v1/admin/tags")
 public class AdminTagController {
@@ -34,22 +31,23 @@ public class AdminTagController {
         this.tagService = tagService;
     }
 
-    @Operation(summary = "标签列表", description = "含每个标签关联的博客数")
+    @Operation(summary = "全量标签列表", description = "管理员接口；按名称排序，附关联博客数")
     @GetMapping
     public ApiResponse<List<AdminTagResponse>> list() {
         return ApiResponse.ok(tagService.adminList());
     }
 
-    @Operation(summary = "重命名标签", description = "标签名全局唯一，最长 30 字符")
+    @Operation(summary = "重命名标签", description = "管理员接口；标签名全局唯一，≤30 字符")
     @PutMapping("/{id}")
-    public ApiResponse<TagResponse> rename(@PathVariable Long id, @Valid @RequestBody AdminTagRenameRequest request) {
+    public ApiResponse<TagResponse> rename(@PathVariable Long id,
+                                           @Valid @RequestBody AdminTagRenameRequest request) {
         return ApiResponse.ok(tagService.adminRename(id, request.name()));
     }
 
-    @Operation(summary = "删除标签", description = "同时移除所有博客与该标签的关联")
+    @Operation(summary = "删除标签", description = "管理员接口；同时移除该标签与博客的关联")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         tagService.adminDelete(id);
-        return ApiResponse.ok();
+        return ApiResponse.ok(null);
     }
 }

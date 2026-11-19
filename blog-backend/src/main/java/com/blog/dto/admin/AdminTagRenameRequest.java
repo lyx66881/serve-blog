@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * 管理端重命名标签请求。
+ * 管理端标签重命名请求。
  */
 public record AdminTagRenameRequest(
         @NotBlank(message = "标签名不能为空")

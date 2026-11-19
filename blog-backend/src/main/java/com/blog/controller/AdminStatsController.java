@@ -11,10 +11,7 @@ import com.blog.service.AdminStatsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * 管理端数据看板接口（SecurityConfig 层已限定 ROLE_ADMIN）。
- */
-@Tag(name = "管理端-数据看板", description = "平台统计（仅管理员）")
+@Tag(name = "数据看板", description = "管理员：全站数据统计（需 admin 角色）")
 @RestController
 @RequestMapping("/api/v1/admin/stats")
 public class AdminStatsController {
@@ -25,7 +22,7 @@ public class AdminStatsController {
         this.adminStatsService = adminStatsService;
     }
 
-    @Operation(summary = "看板统计", description = "总量统计 + 近 14 天发布/注册趋势")
+    @Operation(summary = "看板统计", description = "管理员接口；总量指标 + 近 14 天发文 / 新增用户趋势")
     @GetMapping
     public ApiResponse<AdminStatsResponse> stats() {
         return ApiResponse.ok(adminStatsService.stats());

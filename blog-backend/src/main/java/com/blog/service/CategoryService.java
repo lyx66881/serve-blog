@@ -9,19 +9,22 @@ import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.blog.common.BizException;
 import com.blog.common.ErrorCode;
-import com.blog.dto.admin.AdminCategoryUpdateRequest;
 import com.blog.dto.category.CategoryCreateRequest;
 import com.blog.dto.category.CategoryResponse;
+import com.blog.entity.Blog;
 import com.blog.entity.Category;
+import com.blog.mapper.BlogMapper;
 import com.blog.mapper.CategoryMapper;
 
 @Service
 public class CategoryService {
 
     private final CategoryMapper categoryMapper;
+    private final BlogMapper blogMapper;
 
-    public CategoryService(CategoryMapper categoryMapper) {
+    public CategoryService(CategoryMapper categoryMapper, BlogMapper blogMapper) {
         this.categoryMapper = categoryMapper;
+        this.blogMapper = blogMapper;
     }
 
     public List<CategoryResponse> listAll() {
@@ -54,44 +57,41 @@ public class CategoryService {
         return new CategoryResponse(category.getId(), category.getName(), category.getDescription());
     }
 
-    // ==================== 管理端操作（/api/v1/admin/**，仅管理员） ====================
+    // ==================== 管理端 ====================
 
     /**
-     * 管理端更新分类（名称唯一）。
+     * 管理端：更新分类（名称唯一，排除自身）。
      */
-    @Transactional
-    public CategoryResponse adminUpdate(Long id, AdminCategoryUpdateRequest req) {
-        Category category = requireCategory(id);
-        String name = req.name().trim();
-        Category sameName = categoryMapper.selectOne(new LambdaQueryWrapper<Category>()
-                .eq(Category::getName, name).last("LIMIT 1"));
-        if (sameName != null && !sameName.getId().equals(id)) {
-            throw new BizException(ErrorCode.CONFLICT, "分类名已存在");
-        }
-        category.setName(name);
-        category.setDescription(req.description());
-        try {
-            categoryMapper.updateById(category);
-        } catch (DuplicateKeyException e) {
-            throw new BizException(ErrorCode.CONFLICT, "分类名已存在");
-        }
-        return new CategoryResponse(category.getId(), category.getName(), category.getDescription());
-    }
-
-    /**
-     * 管理端删除分类（逻辑删除；已引用该分类的博客列表将不再显示分类名）。
-     */
-    @Transactional
-    public void adminDelete(Long id) {
-        requireCategory(id);
-        categoryMapper.deleteById(id);
-    }
-
-    private Category requireCategory(Long id) {
+    public CategoryResponse adminUpdate(Long id, CategoryCreateRequest req) {
         Category category = categoryMapper.selectById(id);
         if (category == null) {
             throw new BizException(ErrorCode.CATEGORY_NOT_FOUND);
         }
-        return category;
+        String name = req.name().trim();
+        Long duplicated = categoryMapper.selectCount(new LambdaQueryWrapper<Category>()
+                .eq(Category::getName, name).ne(Category::getId, id));
+        if (duplicated != null && duplicated > 0) {
+            throw new BizException(ErrorCode.CONFLICT, "分类名已存在");
+        }
+        category.setName(name);
+        category.setDescription(req.description());
+        categoryMapper.updateById(category);
+        return new CategoryResponse(category.getId(), category.getName(), category.getDescription());
+    }
+
+    /**
+     * 管理端：删除分类；分类下仍有博客时拒绝删除。
+     */
+    @Transactional
+    public void adminDelete(Long id) {
+        Category category = categoryMapper.selectById(id);
+        if (category == null) {
+            throw new BizException(ErrorCode.CATEGORY_NOT_FOUND);
+        }
+        Long inUse = blogMapper.selectCount(new LambdaQueryWrapper<Blog>().eq(Blog::getCategoryId, id));
+        if (inUse != null && inUse > 0) {
+            throw new BizException(ErrorCode.CONFLICT, "该分类下仍有 " + inUse + " 篇博客，请先转移后再删除");
+        }
+        categoryMapper.deleteById(id);
     }
 }
